@@ -181,18 +181,17 @@ core_time(Core, [HTask|Tasks], TotalTime) :-
 	process_cost(HTask, Core, TaskTime),
 	TotalTime is Time + TaskTime.
 
-
 %% DEPRECATED
-find_optimal_task(Tasks, ResultTask, ResultCore) :-
-	find_optimal_task(Tasks, 1000000, nil, nil, ResultTask, ResultCore).
+%% find_optimal_task(Tasks, ResultTask, ResultCore) :-
+%% 	find_optimal_task(Tasks, 1000000, nil, nil, ResultTask, ResultCore).
 
-find_optimal_task([],_, Task, Core, Task, Core).
-find_optimal_task([HTask|Tasks], Min,_,_, ResultTask, ResultCore) :-
-	process_cost(HTask, Core, Time),
-	Time =< Min, !,
-	find_optimal_task(Tasks, Time, HTask, Core, ResultTask, ResultCore).
-find_optimal_task([_|Tasks], Min, CurTask, CurCore, ResultTask, ResultCore) :-
-	find_optimal_task(Tasks, Min, CurTask, CurCore, ResultTask, ResultCore).
+%% find_optimal_task([],_, Task, Core, Task, Core).
+%% find_optimal_task([HTask|Tasks], Min,_,_, ResultTask, ResultCore) :-
+%% 	process_cost(HTask, Core, Time),
+%% 	Time =< Min, !,
+%% 	find_optimal_task(Tasks, Time, HTask, Core, ResultTask, ResultCore).
+%% find_optimal_task([_|Tasks], Min, CurTask, CurCore, ResultTask, ResultCore) :-
+%% 	find_optimal_task(Tasks, Min, CurTask, CurCore, ResultTask, ResultCore).
 	
 
 
