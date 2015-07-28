@@ -86,5 +86,22 @@ optimal_sequential(ET1) :-
 	findall(ET, process_cost(_, FastestCore, ET), ETs),
 	sum_list(ETs, ET1).
 
-	
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%	
 
+:- dynamic best/2.
+
+find_solution(S) :-
+	findall(Core, core(Core), Cores),
+	findall(Task, task(Task), Tasks),
+	find_solution(ScheduleList, Cores, Tasks),
+	S = solution(ScheduleList). % TODO
+
+find_solution([],[],[]).
+%find_solution(_, [], _) :- fail. % TODO -> remove: als er nog taken over zijn maar geen cores -> faal
+find_solution([schedule(Core,[])|OtherCores], [Core|Cores], []) :-	% Cores over (geen tasks meer)
+	find_solution(OtherCores, Cores, []),!.
+find_solution([schedule(CurrCore, [HTask|OtherTasks])|OtherCores], Cores, [HTask|Tasks]) :- % task toevoegen
+	find_solution([schedule(CurrCore, OtherTasks)|OtherCores], Cores, Tasks).
+find_solution([schedule(CurrCore,[])|OtherCores], [CurrCore|Cores], Tasks) :-	% core switchen
+	find_solution(OtherCores, Cores, Tasks).
+	
