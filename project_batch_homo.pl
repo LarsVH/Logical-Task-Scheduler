@@ -100,8 +100,11 @@ find_solution([],[],[]).
 %find_solution(_, [], _) :- fail. % TODO -> remove: als er nog taken over zijn maar geen cores -> faal
 find_solution([schedule(Core,[])|OtherCores], [Core|Cores], []) :-	% Cores over (geen tasks meer)
 	find_solution(OtherCores, Cores, []),!.
-find_solution([schedule(CurrCore, [HTask|OtherTasks])|OtherCores], Cores, [HTask|Tasks]) :- % task toevoegen
-	find_solution([schedule(CurrCore, OtherTasks)|OtherCores], Cores, Tasks).
+find_solution([schedule(CurrCore, [T|OtherTasks])|OtherCores], Cores, Tasks) :- % task toevoegen
+	task(T),
+	member(T, Tasks),
+	delete_first(T, Tasks, Tasks2),
+	find_solution([schedule(CurrCore, OtherTasks)|OtherCores], Cores, Tasks2).
 find_solution([schedule(CurrCore,[])|OtherCores], [CurrCore|Cores], Tasks) :-	% core switchen
 	find_solution(OtherCores, Cores, Tasks).
 	
