@@ -59,7 +59,7 @@ execution_time([schedule(_, [])|Schedules], TimeSoFar, PreviousET, ET) :-
 execution_time([schedule(_, [Htask|Ttasks])|Schedules], TimeSoFar, PreviousET, ET) :-	
 	process_cost(Htask,_, TaskTime),
 	TimeSoFar2 is TimeSoFar + TaskTime,
-	execution_time([schedule(_,Ttasks)|Schedules], TimeSoFar2, PreviousET, ET).	
+	execution_time([schedule(_,Ttasks)|Schedules], TimeSoFar2, PreviousET, ET),!.	
 
 % max(?X, ?Y, ?Max)
 % Returns the maximum of X and Y
@@ -90,21 +90,43 @@ optimal_sequential(ET1) :-
 
 :- dynamic best/2.
 
+% find_optimal(-S)
+% Computes an optimal schedule S
+find_optimal(_) :-
+	optimal_sequential(ET1),
+	ET2 is ET1 + 1,
+	assert(best(nil, ET1)),
+	find_solution(S),
+	execution_time(S,Time),
+	update_best(S, Time),
+	fail.
+find_optimal(S) :-
+	best(S,_),
+	retract(best(_,_)).
+
+update_best(S, TimeS) :-
+	best(_, TimeBest),
+	TimeS < TimeBest,
+	!,
+	retract(best(_,_)),
+	assert(best(S, TimeS)).
+
+% find_solution(-S)
+% Generates any possible scheduling solution 'S'
 find_solution(S) :-
 	findall(Core, core(Core), Cores),
 	findall(Task, task(Task), Tasks),
 	find_solution(ScheduleList, Cores, Tasks),
-	S = solution(ScheduleList). % TODO
+	S = solution(ScheduleList).
 
 find_solution([],[],[]).
-%find_solution(_, [], _) :- fail. % TODO -> remove: als er nog taken over zijn maar geen cores -> faal
-find_solution([schedule(Core,[])|OtherCores], [Core|Cores], []) :-	% Cores over (geen tasks meer)
+find_solution([schedule(Core,[])|OtherCores], [Core|Cores], []) :-	% Cores remaining, no more tasks
 	find_solution(OtherCores, Cores, []),!.
-find_solution([schedule(CurrCore, [T|OtherTasks])|OtherCores], Cores, Tasks) :- % task toevoegen
+find_solution([schedule(CurrCore, [T|OtherTasks])|OtherCores], Cores, Tasks) :- % Add a task
 	task(T),
 	member(T, Tasks),
 	delete_first(T, Tasks, Tasks2),
 	find_solution([schedule(CurrCore, OtherTasks)|OtherCores], Cores, Tasks2).
-find_solution([schedule(CurrCore,[])|OtherCores], [CurrCore|Cores], Tasks) :-	% core switchen
+find_solution([schedule(CurrCore,[])|OtherCores], [CurrCore|Cores], Tasks) :-	% Switch to other Core
 	find_solution(OtherCores, Cores, Tasks).
 	
