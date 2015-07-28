@@ -42,7 +42,7 @@ set_diff_strict([X|Y],Set2,Diff):-
 %% Test queries
 % isSolution(solution([schedule(c1,[t1]), schedule(c2,[t2,t7]), schedule(c3, [t3,t6]), schedule(c4, [t4,t5])])).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % execution_time(+S,-ET)
 % Expects a valid scheduling solution and returns its Execution Time
@@ -61,8 +61,30 @@ execution_time([schedule(_, [Htask|Ttasks])|Schedules], TimeSoFar, PreviousET, E
 	TimeSoFar2 is TimeSoFar + TaskTime,
 	execution_time([schedule(_,Ttasks)|Schedules], TimeSoFar2, PreviousET, ET).	
 
-%% max(?X, ?Y, ?Max)
-%% Returns the maximum of X and Y
-%% Optimized using a green cut
+% max(?X, ?Y, ?Max)
+% Returns the maximum of X and Y
+% Optimized using a green cut
 max(X,Y,Y) :- X =< Y, !.
 max(X,Y,X) :- X > Y. 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% speedup(+S,-Speedup)
+% Computes the Speedup of a given solution S
+% Speedup = optimal sequential execution time / execution time of S
+speedup(S,SpeedUp) :-
+	optimal_sequential(ET1),
+	execution_time(S, ET),
+	Div is ET1 / ET,
+	SpeedUp is round(Div),!.
+
+% optimal_sequential(-ET1)
+% Determines the optimal sequential execution time
+optimal_sequential(ET1) :-
+	%% determine fastest core
+	FastestCore = c1,
+	findall(ET, process_cost(_, FastestCore, ET), ETs),
+	sum_list(ETs, ET1).
+
+	
+
