@@ -95,7 +95,7 @@ optimal_sequential(ET1) :-
 find_optimal(_) :-
 	optimal_sequential(ET1),
 	ET2 is ET1 + 1,
-	assert(best(nil, ET1)),
+	assert(best(nil, ET2)),
 	find_solution(S),
 	execution_time(S,Time),
 	update_best(S, Time),
@@ -130,3 +130,69 @@ find_solution([schedule(CurrCore, [T|OtherTasks])|OtherCores], Cores, Tasks) :- 
 find_solution([schedule(CurrCore,[])|OtherCores], [CurrCore|Cores], Tasks) :-	% Switch to other Core
 	find_solution(OtherCores, Cores, Tasks).
 	
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% find_heuristically(-S)
+% Returns a schedule solution by heuristic:
+% Each time a task is considered, it will be added to the
+% (at that moment) core with lowest occupancy (based on execution time)
+find_heuristically(S) :-
+	findall(Core, core(Core), Cores),
+	findall(Task, task(Task), Tasks),
+	create_empty_schedule(Cores, InitScheduleList),
+	find_heuristically(Tasks, Cores, InitScheduleList, ScheduleList),
+	S = solution(ScheduleList). % TODO
+
+find_heuristically([],_, ScheduleList, ScheduleList).
+find_heuristically([HTask|Tasks], Cores, CurrSchedule, ScheduleList) :-
+	most_inactive_core(CurrSchedule, Core),
+	add_to_core(HTask, Core, CurrSchedule, ResultSchedule),
+	find_heuristically(Tasks, Cores, ResultSchedule, ScheduleList).
+
+% create_empty_schedule(+Cores, -Schedule)
+create_empty_schedule([], []).
+create_empty_schedule([HCore|Cores], [schedule(HCore, [])|Schedule]) :-
+	create_empty_schedule(Cores, Schedule).
+
+% add_to_core(+Task, +Core, +ScheduleList, -ResultScheduleList)
+% Append a task to a core in a ScheduleList
+add_to_core(Task, Core, [schedule(Core, Tasks)|Cores], [schedule(Core, [Task|Tasks])|Cores]) :- !.
+add_to_core(Task, Core, [schedule(CurrCore, Tasks)|Cores], [schedule(CurrCore, Tasks)|RCores]) :-
+	add_to_core(Task, Core, Cores, RCores).
+
+% most_inactive_core(+ScheduleList, -ResultCore)
+% Returns a core 'ResultCore' with lowest time occupancy according to 'ScheduleList'
+most_inactive_core(ScheduleList, ResultCore) :-
+	most_inactive_core(ScheduleList,1000000,_, ResultCore).
+
+most_inactive_core([],_, ResultCore, ResultCore).
+most_inactive_core([schedule(Core, Tasks)|Schedules], CurrTime,_, ResultCore) :-
+	core_time(Core, Tasks, Time),
+	Time =< CurrTime, !,
+	most_inactive_core(Schedules, Time, Core, ResultCore).
+most_inactive_core([schedule(_,_)|Schedules], CurrTime, CurrCore, ResultCore) :-
+	most_inactive_core(Schedules, CurrTime, CurrCore, ResultCore).
+
+
+% core_time(+Core, +Tasks, -TotalTime)
+% Returns the occupancy time of a core 'Core' when processing 'Tasks'
+core_time(_, [], 0).
+core_time(Core, [HTask|Tasks], TotalTime) :-
+	core_time(Core, Tasks, Time), !,
+	process_cost(HTask, Core, TaskTime),
+	TotalTime is Time + TaskTime.
+
+
+%% DEPRECATED
+find_optimal_task(Tasks, ResultTask, ResultCore) :-
+	find_optimal_task(Tasks, 1000000, nil, nil, ResultTask, ResultCore).
+
+find_optimal_task([],_, Task, Core, Task, Core).
+find_optimal_task([HTask|Tasks], Min,_,_, ResultTask, ResultCore) :-
+	process_cost(HTask, Core, Time),
+	Time =< Min, !,
+	find_optimal_task(Tasks, Time, HTask, Core, ResultTask, ResultCore).
+find_optimal_task([_|Tasks], Min, CurTask, CurCore, ResultTask, ResultCore) :-
+	find_optimal_task(Tasks, Min, CurTask, CurCore, ResultTask, ResultCore).
+	
+
+
