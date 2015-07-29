@@ -81,10 +81,33 @@ speedup(S,SpeedUp) :-
 % optimal_sequential(-ET1)
 % Determines the optimal sequential execution time
 optimal_sequential(ET1) :-
-	%% determine fastest core
-	FastestCore = c1,
-	findall(ET, process_cost(_, FastestCore, ET), ETs),
-	sum_list(ETs, ET1).
+	findall(Core, core(Core), Cores),
+	findall(Task, task(Task), Tasks),
+	fastest_core(Cores, Tasks, FastestCore),
+	core_time(FastestCore, Tasks, ET1).
+
+% fastest_core(+Cores, +Tasks, -Core)
+% Given a list of cores 'Cores', returns the fastest 'Core'
+% by summing the cost of computing all tasks 'Tasks' per core
+% and then taking the core with the lowest cost
+fastest_core(Cores, Tasks, Core) :-
+	fastest_core(Cores, Tasks, 1000000, nil, Core).
+fastest_core([],_,_, Core, Core).
+fastest_core([HCore|Cores], Tasks, CurrTime, _, Core) :-
+	core_time(HCore, Tasks, Time),
+	Time =< CurrTime, !,
+	fastest_core(Cores, Tasks, Time, HCore, Core).
+fastest_core([_|Cores], Tasks, CurrTime, CurrCore, Core) :-
+	fastest_core(Cores, Tasks, CurrTime, CurrCore, Core).
+
+% core_time(+Core, +Tasks, -TotalTime)
+% Returns the occupancy time of a core 'Core' when processing 'Tasks'
+core_time(_, [], 0).
+core_time(Core, [HTask|Tasks], TotalTime) :-
+	core_time(Core, Tasks, Time), !,
+	process_cost(HTask, Core, TaskTime),
+	TotalTime is Time + TaskTime.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%	
 
@@ -173,13 +196,7 @@ most_inactive_core([schedule(_,_)|Schedules], CurrTime, CurrCore, ResultCore) :-
 	most_inactive_core(Schedules, CurrTime, CurrCore, ResultCore).
 
 
-% core_time(+Core, +Tasks, -TotalTime)
-% Returns the occupancy time of a core 'Core' when processing 'Tasks'
-core_time(_, [], 0).
-core_time(Core, [HTask|Tasks], TotalTime) :-
-	core_time(Core, Tasks, Time), !,
-	process_cost(HTask, Core, TaskTime),
-	TotalTime is Time + TaskTime.
+
 
 %% DEPRECATED
 %% find_optimal_task(Tasks, ResultTask, ResultCore) :-
