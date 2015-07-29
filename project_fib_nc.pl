@@ -27,9 +27,14 @@ check_dependencies([]).
 check_dependencies([HTask|Tasks]) :-
 	findall(DepTask, depends_on(HTask, DepTask,_), Deps), %% Get all tasks on which I 'HTask' depend
 	intersection(Deps, Tasks, []),!,	% No task 'Deps' on which I depend should be scheduled after me 'Tasks'
-	check_trans_dependencies(Deps, Tasks),
+	check_trans_dependencies(Deps, Tasks),	% Check if there are any transitive dependencies
 	check_dependencies(Tasks).
 
+% check_trans_dependencies(+Dependencies, +Tasks)
+% Checks if any 'Dependencies' dependency has a 
+% transitive dependency on a task in 'Tasks'
+% p.e. t5 dep on t3, t3 dep on t1
+% => c1(t5,t1),c2(t3) is not a valid schedule
 check_trans_dependencies([],_).
 check_trans_dependencies([HDep|Deps], TaskList) :-
 	not(member(HDep, TaskList)),
@@ -151,9 +156,9 @@ update_best(S, TimeS) :-
 % Generates any possible scheduling solution 'S'
 find_solution(S) :-
 	findall(Core, core(Core), Cores),
-	% TODO: reverse 'Cores' list to get S in normal order: c1,c2,... instead of ...,c2,c1
+	reverse(Cores, RCores),	% Cosmetics: reverse 'Cores' to get S in normal order: c1,c2,... instead of ...,c2,c1
 	findall(Task, task(Task), Tasks),
-	find_solution(Cores, Tasks, [], ScheduleList),
+	find_solution(RCores, Tasks, [], ScheduleList),
 	S = solution(ScheduleList).
 
 find_solution([],[], Result, Result).
@@ -162,7 +167,7 @@ find_solution([Core|Cores], [], AccSchedule, ScheduleList) :-	% Cores remaining,
 find_solution(Cores, Tasks, [schedule(CurrCore, ScheduleTasks)|OtherCores], ScheduleList) :- % Add a task
 	task(T),
 	member(T, Tasks),
-	check_dependencies([T|ScheduleTasks]), % TODO;TODO;TODO!!!!!!!!!!!
+	check_dependencies([T|ScheduleTasks]),
 	delete_first(T, Tasks, Tasks2),
 	find_solution(Cores, Tasks2, [schedule(CurrCore, [T|ScheduleTasks])|OtherCores], ScheduleList).
 find_solution([CurrCore|Cores], Tasks, AccSchedule, ScheduleList) :-	% Switch to other Core
