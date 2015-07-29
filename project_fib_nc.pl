@@ -9,16 +9,27 @@ isSolution(solution(ScheduleList)) :-
 
 %% No more tasks nor cores remaining => this is a valid solution
 isSolution([],[],[]).	
-%% No more tasks remaining, only cores. Checking if each core is reprented in list of schedules
+%% No more tasks remaining, only cores. Checking if each core is represented in list of schedules
 isSolution([schedule(Core, [])|Schedules], Cores,[]) :-	
 	delete_first(Core, Cores, NewCores),
 	isSolution(Schedules, NewCores,[]).
 %isSolution(_, [], Tasks) :- fail.
 isSolution([schedule(Core, Schedule)|Schedules], Cores, Tasks) :-
 	delete_first(Core, Cores, NewCores),
+	check_dependencies(Schedule),
 	set_diff_strict(Tasks, Schedule, NewTasks),
 	isSolution(Schedules, NewCores, NewTasks).
 
+% check_dependencies(+TaskSchedule)
+% Checks if no dependencies are violated given 
+% the ORDER of tasks in 'TaskSchedule'
+check_dependencies(TaskSchedule) :-
+	check_dependencies(TaskSchedule, []).
+check_dependencies([],_).
+check_dependencies([HTask|Tasks], PreviousTasks) :-
+	findall(DepTask, depends_on(DepTask, HTask,_), Deps), %% Get all tasks depending on me 'HTask'
+	intersection(Deps, PreviousTasks, []),!,% No task (Deps) depending on me should have been processed yet 'PreviousTasks'
+	check_dependencies(Tasks, [HTask|PreviousTasks]).
 
 
 %delete_first(E,L1,L2): L2 is L1 with the first occurance of E removed, fails if E does not occur in L1.
