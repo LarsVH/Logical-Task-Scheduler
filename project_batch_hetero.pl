@@ -72,8 +72,7 @@ max(X,Y,X) :- X > Y.
 speedup(S,SpeedUp) :-
 	optimal_sequential(ET1),
 	execution_time(S, ET),
-	Div is ET1 / ET,
-	SpeedUp is round(Div),!.
+	SpeedUp is ET1 / ET,!.
 
 % optimal_sequential(-ET1)
 % Determines the optimal sequential execution time
