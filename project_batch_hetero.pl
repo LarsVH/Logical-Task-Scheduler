@@ -163,7 +163,7 @@ find_heuristically(S) :-
 	findall(Task, task(Task), Tasks),
 	create_empty_schedule(Cores, InitScheduleList),
 	find_heuristically(Tasks, Cores, InitScheduleList, ScheduleList),
-	S = solution(ScheduleList). % TODO
+	S = solution(ScheduleList).
 
 find_heuristically([],_, ScheduleList, ScheduleList).
 find_heuristically([HTask|Tasks], Cores, CurrSchedule, ScheduleList) :-
