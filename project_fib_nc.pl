@@ -22,14 +22,20 @@ isSolution([schedule(Core, Schedule)|Schedules], Cores, Tasks) :-
 
 % check_dependencies(+TaskSchedule)
 % Checks if no dependencies are violated given 
-% the ORDER of tasks in 'TaskSchedule'
-check_dependencies(TaskSchedule) :-
-	check_dependencies(TaskSchedule, []).
-check_dependencies([],_).
-check_dependencies([HTask|Tasks], PreviousTasks) :-
-	findall(DepTask, depends_on(DepTask, HTask,_), Deps), %% Get all tasks depending on me 'HTask'
-	intersection(Deps, PreviousTasks, []),!,% No task (Deps) depending on me should have been processed yet 'PreviousTasks'
-	check_dependencies(Tasks, [HTask|PreviousTasks]).
+% the ORDER of tasks in 'TaskSchedule' (list of tasks)
+check_dependencies([]).
+check_dependencies([HTask|Tasks]) :-
+	findall(DepTask, depends_on(HTask, DepTask,_), Deps), %% Get all tasks on which I 'HTask' depend
+	intersection(Deps, Tasks, []),!,	% No task 'Deps' on which I depend should be scheduled after me 'Tasks'
+	check_trans_dependencies(Deps, Tasks),
+	check_dependencies(Tasks).
+
+check_trans_dependencies([],_).
+check_trans_dependencies([HDep|Deps], TaskList) :-
+	not(member(HDep, TaskList)),
+	findall(DepTask, depends_on(HDep, DepTask,_), TransDeps),
+	check_trans_dependencies(TransDeps, TaskList),
+	check_trans_dependencies(Deps, TaskList).
 
 
 %delete_first(E,L1,L2): L2 is L1 with the first occurance of E removed, fails if E does not occur in L1.
@@ -89,7 +95,7 @@ speedup(S,SpeedUp) :-
 % Determines the optimal sequential execution time
 optimal_sequential(ET1) :-
 	findall(Core, core(Core), Cores),
-	findall(Task, task(Task), Tasks),
+	findall(Task, task(Task), Tasks),	% !! Order of tasks (dependencies) not of importance for this computation
 	fastest_core(Cores, Tasks, FastestCore),
 	core_time(FastestCore, Tasks, ET1),!.
 
@@ -145,20 +151,22 @@ update_best(S, TimeS) :-
 % Generates any possible scheduling solution 'S'
 find_solution(S) :-
 	findall(Core, core(Core), Cores),
+	% TODO: reverse 'Cores' list to get S in normal order: c1,c2,... instead of ...,c2,c1
 	findall(Task, task(Task), Tasks),
-	find_solution(ScheduleList, Cores, Tasks),
+	find_solution(Cores, Tasks, [], ScheduleList),
 	S = solution(ScheduleList).
 
-find_solution([],[],[]).
-find_solution([schedule(Core,[])|OtherCores], [Core|Cores], []) :-	% Cores remaining, no more tasks
-	find_solution(OtherCores, Cores, []),!.
-find_solution([schedule(CurrCore, [T|OtherTasks])|OtherCores], Cores, Tasks) :- % Add a task
+find_solution([],[], Result, Result).
+find_solution([Core|Cores], [], AccSchedule, ScheduleList) :-	% Cores remaining, no more tasks
+	find_solution(Cores, [], [schedule(Core,[])|AccSchedule], ScheduleList),!.
+find_solution(Cores, Tasks, [schedule(CurrCore, ScheduleTasks)|OtherCores], ScheduleList) :- % Add a task
 	task(T),
 	member(T, Tasks),
+	check_dependencies([T|ScheduleTasks]), % TODO;TODO;TODO!!!!!!!!!!!
 	delete_first(T, Tasks, Tasks2),
-	find_solution([schedule(CurrCore, OtherTasks)|OtherCores], Cores, Tasks2).
-find_solution([schedule(CurrCore,[])|OtherCores], [CurrCore|Cores], Tasks) :-	% Switch to other Core
-	find_solution(OtherCores, Cores, Tasks).
+	find_solution(Cores, Tasks2, [schedule(CurrCore, [T|ScheduleTasks])|OtherCores], ScheduleList).
+find_solution([CurrCore|Cores], Tasks, AccSchedule, ScheduleList) :-	% Switch to other Core
+	find_solution(Cores, Tasks, [schedule(CurrCore,[])|AccSchedule], ScheduleList).
 	
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % find_heuristically(-S)
