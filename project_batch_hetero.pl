@@ -47,19 +47,16 @@ set_diff_strict([X|Y],Set2,Diff):-
 % execution_time(+S,-ET)
 % Expects a valid scheduling solution and returns its Execution Time
 execution_time(solution(ScheduleList), ET) :-
-	execution_time(ScheduleList, 0,0, ET).
+	execution_time(ScheduleList, 0, ET).
 % Schedules: List of schedules in format [schedule(CoreS, [TaskX,...,TaskY]),..., schedule(CoreZ, [TaskZ,...])]
 % TimeSoFar: (Per Core) Time of tasks already computed. Reset to 0 when going to the next core
 % PreviousET: (Accumulator): Maximum ET computed until now. Becomes the final ET when end of schedulelist is reached
 % ET: Final execution time
-execution_time([], 0, ET, ET).
-execution_time([schedule(_, [])|Schedules], TimeSoFar, PreviousET, ET) :-	
-	max(TimeSoFar, PreviousET, CurrentET),
-	execution_time(Schedules, 0, CurrentET, ET).	
-execution_time([schedule(Core, [HTask|TTasks])|Schedules], TimeSoFar, PreviousET, ET) :-	
-	process_cost(HTask, Core, TaskTime),
-	TimeSoFar2 is TimeSoFar + TaskTime,
-	execution_time([schedule(_,TTasks)|Schedules], TimeSoFar2, PreviousET, ET),!.	
+execution_time([], ET, ET).
+execution_time([schedule(Core, Tasks)|Schedules], PreviousET, ET) :-	
+	core_time(Core, Tasks, Time),
+	max(PreviousET, Time, NextET),
+	execution_time(Schedules, NextET, ET).	
 
 % max(?X, ?Y, ?Max)
 % Returns the maximum of X and Y
