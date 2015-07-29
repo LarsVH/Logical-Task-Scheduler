@@ -192,6 +192,3 @@ core_time(Core, [HTask|Tasks], TotalTime) :-
 %% 	find_optimal_task(Tasks, Time, HTask, Core, ResultTask, ResultCore).
 %% find_optimal_task([_|Tasks], Min, CurTask, CurCore, ResultTask, ResultCore) :-
 %% 	find_optimal_task(Tasks, Min, CurTask, CurCore, ResultTask, ResultCore).
-	
-
-
