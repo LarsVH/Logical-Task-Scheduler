@@ -80,7 +80,7 @@ optimal_sequential(ET1) :-
 	findall(Core, core(Core), Cores),
 	findall(Task, task(Task), Tasks),
 	fastest_core(Cores, Tasks, FastestCore),
-	core_time(FastestCore, Tasks, ET1).
+	core_time(FastestCore, Tasks, ET1),!.
 
 % fastest_core(+Cores, +Tasks, -Core)
 % Given a list of cores 'Cores', returns the fastest 'Core'
