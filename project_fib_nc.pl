@@ -60,6 +60,15 @@ set_diff_strict([X|Y],Set2,Diff):-
 	delete_first(X, Set2, Set2New),
 	set_diff_strict(Y,Set2New,Diff).
 
+%% set_diff(+Set1, +Set2, -Diff)
+%% Non-strict version of set_diff
+set_diff([],_,[]).
+set_diff([X|Y],Set2,Res):-
+	not(member(X,Set2)), !,
+	Res = [X|Diff],
+	set_diff(Y,Set2,Diff).
+set_diff([_|Y],Set2,Diff):-
+	set_diff(Y,Set2,Diff).
 
 %% Test queries
 % isSolution(solution([schedule(c1,[t1]), schedule(c2,[t2,t7]), schedule(c3, [t3,t6]), schedule(c4, [t4,t5])])).
@@ -181,6 +190,7 @@ find_solution([CurrCore|Cores], Tasks, AccSchedule, ScheduleList) :-	% Switch to
 find_heuristically(S) :-
 	findall(Core, core(Core), Cores),
 	findall(Task, task(Task), Tasks),
+	%sort_by_dependencies(Tasks, SortedTasks),
 	create_empty_schedule(Cores, InitScheduleList),
 	find_heuristically(Tasks, Cores, InitScheduleList, ScheduleList),
 	S = solution(ScheduleList).
@@ -198,7 +208,8 @@ create_empty_schedule([HCore|Cores], [schedule(HCore, [])|Schedule]) :-
 
 % add_to_core(+Task, +Core, +ScheduleList, -ResultScheduleList)
 % Append a task to a core in a ScheduleList
-add_to_core(Task, Core, [schedule(Core, Tasks)|Cores], [schedule(Core, [Task|Tasks])|Cores]) :- !.
+add_to_core(Task, Core, [schedule(Core, Tasks)|Cores], [schedule(Core, NewCoreSchedule)|Cores]) :-
+	add2end(Task, Tasks, NewCoreSchedule).
 add_to_core(Task, Core, [schedule(CurrCore, Tasks)|Cores], [schedule(CurrCore, Tasks)|RCores]) :-
 	add_to_core(Task, Core, Cores, RCores).
 
@@ -216,7 +227,29 @@ most_inactive_core([schedule(_,_)|Schedules], CurrTime, CurrCore, ResultCore) :-
 	most_inactive_core(Schedules, CurrTime, CurrCore, ResultCore).
 
 
+%% sort_by_dependencies(+Tasks, -Sorted)
+%% Sorts 'Tasks' in such way that (from left to right)
+%% no dependencies are violated
+sort_by_dependencies(Tasks, Sorted) :-
+	sort_by_dependencies_init(Tasks, SortedNested),
+	flatten(SortedNested, Sorted).
+sort_by_dependencies_init(Tasks, [NonDeps|Sorted]) :-
+	% Initially, tasks without dependencies do not have dependencies in the tasklist
+	findall(Task, (member(Task, Tasks), not(depends_on(Task,_,_))), NonDeps),
+	set_diff(Tasks, NonDeps, DepTasks),	
+	sort_by_dependencies_do(DepTasks, Sorted).
+sort_by_dependencies_do([], []) :- !.
+sort_by_dependencies_do(Tasks, [NonDeps|Sorted]) :-
+	% Find tasks not depending on any other tasks in the tasklist
+	findall(Task, (member(Task, Tasks), not((depends_on(Task, Dependency,_), member(Dependency, Tasks)))), NonDeps),	
+	set_diff(Tasks, NonDeps, DepTasks),			% Remove dependencies from tasklist
+	sort_by_dependencies_do(DepTasks, Sorted).
 
+%% add2end(+E, +List, -NewList)
+%% adds an element to the end of a list
+%% != append (if List is empty, append only returns E, not [E])
+add2end(E,[H|T],[H|NewT]):-add2end(E,T,NewT).
+add2end(E,[],[E]).
 
 %% DEPRECATED
 %% find_optimal_task(Tasks, ResultTask, ResultCore) :-
