@@ -79,14 +79,12 @@ set_diff([_|Y],Set2,Diff):-
 % Expects a valid scheduling solution and returns its Execution Time
 execution_time(solution(ScheduleList), ET) :-
 	get_schedule_tasks(ScheduleList, Tasks),
-	%sort_by_dependencies(Tasks, DepSortTasks),
 	execution_time(ScheduleList, Tasks, 0, ET). % ScheduleList, DepSortTasks, Processed, PreviousET, ET
-% Schedules: List of schedules in format [schedule(CoreS, [TaskX,...,TaskY]),..., schedule(CoreZ, [TaskZ,...])]
-% TimeSoFar: (Per Core) Time of tasks already computed. Reset to 0 when going to the next core
-% PreviousET: (Accumulator): Maximum ET computed until now. Becomes the final ET when end of schedulelist is reached
+% ScheduleList: List of schedules in format [schedule(CoreS, [TaskX,...,TaskY]),..., schedule(CoreZ, [TaskZ,...])]
+% Tasks: All tasks in the schedule to be considered on order to compute ET
+% PreviousET: (Accumulator): Maximum ET computed until now. Becomes the final ET when end of 'Tasks' is reached
 % ET: Final execution time
 execution_time(_, [], ET, ET) :- !.
-
 execution_time(ScheduleList, Tasks, PreviousET, ET) :-
 	get_no_dep_tasks(Tasks, NoDepTasks),
 	etime_nondeps(NoDepTasks, ScheduleList, NonDepET), !,
@@ -168,9 +166,10 @@ speedup(S,SpeedUp) :-
 % Determines the optimal sequential execution time
 optimal_sequential(ET1) :-
 	findall(Core, core(Core), Cores),
-	findall(Task, task(Task), Tasks),	% !! Order of tasks (dependencies) not of importance for this computation
-	fastest_core(Cores, Tasks, FastestCore),
-	core_time(FastestCore, Tasks, ET1),!.
+	findall(Task, task(Task), Tasks),
+	sort_by_dependencies(Tasks, SortedTasks),
+	fastest_core(Cores, SortedTasks, FastestCore),
+	core_time(FastestCore, SortedTasks, ET1),!.
 
 % fastest_core(+Cores, +Tasks, -Core)
 % Given a list of cores 'Cores', returns the fastest 'Core'
