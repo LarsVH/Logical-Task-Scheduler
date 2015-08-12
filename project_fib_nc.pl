@@ -78,22 +78,81 @@ set_diff([_|Y],Set2,Diff):-
 % execution_time(+S,-ET)
 % Expects a valid scheduling solution and returns its Execution Time
 execution_time(solution(ScheduleList), ET) :-
-	execution_time(ScheduleList, 0, ET).
+	get_schedule_tasks(ScheduleList, Tasks),
+	%sort_by_dependencies(Tasks, DepSortTasks),
+	execution_time(ScheduleList, Tasks, 0, ET). % ScheduleList, DepSortTasks, Processed, PreviousET, ET
 % Schedules: List of schedules in format [schedule(CoreS, [TaskX,...,TaskY]),..., schedule(CoreZ, [TaskZ,...])]
 % TimeSoFar: (Per Core) Time of tasks already computed. Reset to 0 when going to the next core
 % PreviousET: (Accumulator): Maximum ET computed until now. Becomes the final ET when end of schedulelist is reached
 % ET: Final execution time
-execution_time([], ET, ET).
-execution_time([schedule(Core, Tasks)|Schedules], PreviousET, ET) :-	
-	core_time(Core, Tasks, Time),
-	max(PreviousET, Time, NextET),
-	execution_time(Schedules, NextET, ET).	
+execution_time(_, [], ET, ET) :- !.
+
+execution_time(ScheduleList, Tasks, PreviousET, ET) :-
+	get_no_dep_tasks(Tasks, NoDepTasks),
+	etime_nondeps(NoDepTasks, ScheduleList, NonDepET), !,
+	%max(PreviousET, NonDepET, NextET),
+	NextET is PreviousET + NonDepET,
+	set_diff_strict(Tasks, NoDepTasks, NextTasks),
+	execution_time(ScheduleList, NextTasks, NextET, ET).
+
+%% etime_nondeps(+NonDeps, +ScheduleList, -ET)
+%% Computes the execution time of tasks 'NonDeps' according
+%% to the schedule given by 'ScheduleList'
+%% Only the tasks in 'NonDeps' are considered
+etime_nondeps(NonDeps, ScheduleList, ET) :-
+	etime_nondeps(NonDeps, ScheduleList, [], [], 0, ET).
+%% NonDeps: Tasks of which ET has to be computed
+%% ScheduleList: List of schedules in which 'NonDeps' are scheduled
+%% ProcessedNonDeps: 'NonDeps' tasks already considered in recursion
+%% CoresScheduled: Cores already considered in recursion
+%% PreviousET: ET at certain point in recursion (can only become larger)
+%% ET: Final execution time
+etime_nondeps([],_,_,_, ET, ET).
+etime_nondeps([HNonDeps|TNonDeps], ScheduleList, ProcessedNonDeps, CoresScheduled, PreviousET, ET) :-
+	scheduled_on_core(HNonDeps, ScheduleList, Core),
+	member(Core, CoresScheduled), !,					% CASE1: the core has already tasks scheduled
+	core_scheduled_tasks(Core, ScheduleList, CoreTasks),
+	intersection(CoreTasks, ProcessedNonDeps, CurrCoreTasks), % Only processed NonDep tasks should be considered
+	core_time(Core, [HNonDeps|CurrCoreTasks], CoreET),
+	max(PreviousET, CoreET, NewET),
+	etime_nondeps(TNonDeps, ScheduleList, [HNonDeps|ProcessedNonDeps], CoresScheduled, NewET, ET).
+etime_nondeps([HNonDeps|TNonDeps], ScheduleList, ProcessedNonDeps, CoresScheduled, PreviousET, ET) :- 
+	% CASE2: Core has not yet any tasks scheduled
+	scheduled_on_core(HNonDeps, ScheduleList, Core),
+	core_time(Core, [HNonDeps], CoreET),
+	max(PreviousET, CoreET, NewET),
+	etime_nondeps(TNonDeps, ScheduleList, [HNonDeps|ProcessedNonDeps], [Core|CoresScheduled], NewET, ET).
+
 
 % max(?X, ?Y, ?Max)
 % Returns the maximum of X and Y
 % Optimized using a green cut
 max(X,Y,Y) :- X =< Y, !.
 max(X,Y,X) :- X > Y. 
+
+%% get_schedule_tasks(+ScheduleList, -Tasks)
+%% Expects a list of schedules 'ScheduleList' and extracts its tasks.
+get_schedule_tasks([], []).
+get_schedule_tasks([schedule(Core, [HTask|TTask])|Schedules], [HTask|ResTasks]) :-
+	get_schedule_tasks([schedule(Core, TTask)|Schedules], ResTasks), !.
+get_schedule_tasks([schedule(_,[])|Schedules], ResTasks) :-
+	get_schedule_tasks(Schedules, ResTasks), !.
+
+%% scheduled_on_core(+Task, +ScheduleList, -Core)
+%% Returns core 'Core' on which 'Task' is scheduled in 'ScheduleList'
+%% 'ScheduleList' must be a valid schedule
+scheduled_on_core(Task, [schedule(Core, Tasks)|_], Core) :-
+	member(Task, Tasks), !.
+scheduled_on_core(Task, [_|Schedules], Core) :-
+	scheduled_on_core(Task, Schedules, Core).	
+
+
+%% core_scheduled_tasks(+Core, +ScheduleList, -Tasks)
+%% Returns 'Tasks' scheduled on 'Core' in 'ScheduleList'
+core_scheduled_tasks(Core, [schedule(Core, Tasks)|_], Tasks) :- !.
+core_scheduled_tasks(Core, [_|OtherCores], Tasks) :-
+	core_scheduled_tasks(Core, OtherCores, Tasks).	
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -192,7 +251,7 @@ find_heuristically(S) :-
 	findall(Task, task(Task), Tasks),
 	%sort_by_dependencies(Tasks, SortedTasks),
 	create_empty_schedule(Cores, InitScheduleList),
-	find_heuristically(Tasks, Cores, InitScheduleList, ScheduleList),
+	find_heuristically(Tasks, Cores, InitScheduleList, ScheduleList), !,
 	S = solution(ScheduleList).
 
 find_heuristically([],_, ScheduleList, ScheduleList).
@@ -231,19 +290,21 @@ most_inactive_core([schedule(_,_)|Schedules], CurrTime, CurrCore, ResultCore) :-
 %% Sorts 'Tasks' in such way that (from left to right)
 %% no dependencies are violated
 sort_by_dependencies(Tasks, Sorted) :-
-	sort_by_dependencies_init(Tasks, SortedNested),
+	sort_by_dependencies_do(Tasks, SortedNested),
 	flatten(SortedNested, Sorted).
-sort_by_dependencies_init(Tasks, [NonDeps|Sorted]) :-
-	% Initially, tasks without dependencies do not have dependencies in the tasklist
-	findall(Task, (member(Task, Tasks), not(depends_on(Task,_,_))), NonDeps),
-	set_diff(Tasks, NonDeps, DepTasks),	
-	sort_by_dependencies_do(DepTasks, Sorted).
 sort_by_dependencies_do([], []) :- !.
-sort_by_dependencies_do(Tasks, [NonDeps|Sorted]) :-
+sort_by_dependencies_do(Tasks, [NonDeps|Sorted]) :-	
 	% Find tasks not depending on any other tasks in the tasklist
-	findall(Task, (member(Task, Tasks), not((depends_on(Task, Dependency,_), member(Dependency, Tasks)))), NonDeps),	
+	get_no_dep_tasks(Tasks, NonDeps),
 	set_diff(Tasks, NonDeps, DepTasks),			% Remove dependencies from tasklist
 	sort_by_dependencies_do(DepTasks, Sorted).
+
+%% get_no_dep_tasks(+Tasks, -NonDeps)
+%% Expects a list of tasks 'Tasks'
+%% Returns tasks 'NonDeps' not depending on any
+%% other task in 'Tasks'
+get_no_dep_tasks(Tasks, NonDeps) :-
+	findall(Task, (member(Task, Tasks), not((depends_on(Task, Dependency,_), member(Dependency, Tasks)))), NonDeps).
 
 %% add2end(+E, +List, -NewList)
 %% adds an element to the end of a list
