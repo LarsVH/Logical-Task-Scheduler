@@ -79,19 +79,45 @@ set_diff([_|Y],Set2,Diff):-
 % Expects a valid scheduling solution and returns its Execution Time
 execution_time(solution(ScheduleList), ET) :-
 	get_schedule_tasks(ScheduleList, Tasks),
-	execution_time(ScheduleList, Tasks, 0, ET). % ScheduleList, DepSortTasks, Processed, PreviousET, ET
+	execution_time(ScheduleList, Tasks, [], 0, ET). % ScheduleList, DepSortTasks, Processed, PreviousET, ET
 % ScheduleList: List of schedules in format [schedule(CoreS, [TaskX,...,TaskY]),..., schedule(CoreZ, [TaskZ,...])]
 % Tasks: All tasks in the schedule to be considered on order to compute ET
 % PreviousET: (Accumulator): Maximum ET computed until now. Becomes the final ET when end of 'Tasks' is reached
 % ET: Final execution time
-execution_time(_, [], ET, ET) :- !.
-execution_time(ScheduleList, Tasks, PreviousET, ET) :-
+execution_time(_, [],_, ET, ET) :- !.
+execution_time(ScheduleList, Tasks, ProcessedTasks, PreviousET, ET) :-
 	get_no_dep_tasks(Tasks, NoDepTasks),
-	etime_nondeps(NoDepTasks, ScheduleList, NonDepET), !,
-	%max(PreviousET, NonDepET, NextET),
+	have_only_processed_tasks_before(NoDepTasks, ScheduleList, ProcessedTasks, OPTBeforeTasks),
+	etime_nondeps(OPTBeforeTasks, ScheduleList, NonDepET), !,
 	NextET is PreviousET + NonDepET,
-	set_diff_strict(Tasks, NoDepTasks, NextTasks),
-	execution_time(ScheduleList, NextTasks, NextET, ET).
+	set_diff_strict(Tasks, OPTBeforeTasks, NextTasks), %% remove only tasks having only processed tasks scheduled before them
+	append(OPTBeforeTasks, ProcessedTasks, NewProcessedTasks),
+	execution_time(ScheduleList, NextTasks, NewProcessedTasks, NextET, ET).
+
+%% have_only_processed_tasks_before(+Tasks, +ScheduleList, +ProcessedTasks, -OPTBeforeTasks)
+%% Returns 'OPTBeforeTasks' containing only those tasks in 'Tasks' having only processed tasks
+%% 'ProcessedTasks' scheduled before them (based on 'ScheduleList')
+have_only_processed_tasks_before([],_,_,[]).
+have_only_processed_tasks_before([HTask|TTasks], ScheduleList, ProcessedTasks, [HTask|OPTBeforeTasks]) :-
+	scheduled_on_core(HTask, ScheduleList, Core),
+	core_scheduled_tasks(Core, ScheduleList, CoreTasks),
+	%% CASE1: HTask has only processed tasks scheduled before
+	has_only_processed_tasks_before(HTask, CoreTasks, ProcessedTasks), !,
+	have_only_processed_tasks_before(TTasks, ScheduleList, ProcessedTasks, OPTBeforeTasks).
+have_only_processed_tasks_before([_|TTasks], ScheduleList, ProcessedTasks, OPTBeforeTasks) :-
+	%% CASE2: (else) There exists a non-processed task scheduled before HTask
+	have_only_processed_tasks_before(TTasks, ScheduleList, ProcessedTasks, OPTBeforeTasks).
+
+
+%% has_only_processed_tasks_before(+Task, +Tasks, +ProcessedTasks)
+%% Checks if any task in 'Tasks' before 'Task' is already processed
+%% e.g. member of 'ProcessedTasks'
+%% 'Task' must be member of 'Tasks' !!
+has_only_processed_tasks_before(Task, [Task|_],_) :- !.
+has_only_processed_tasks_before(Task, [HTask|TTasks], ProcessedTasks) :-
+	member(HTask, ProcessedTasks), !,
+	has_only_processed_tasks_before(Task, TTasks, ProcessedTasks).
+
 
 %% etime_nondeps(+NonDeps, +ScheduleList, -ET)
 %% Computes the execution time of tasks 'NonDeps' according
@@ -308,7 +334,7 @@ get_no_dep_tasks(Tasks, NonDeps) :-
 %% add2end(+E, +List, -NewList)
 %% adds an element to the end of a list
 %% != append (if List is empty, append only returns E, not [E])
-add2end(E,[H|T],[H|NewT]):-add2end(E,T,NewT).
+add2end(E,[H|T],[H|NewT]) :- add2end(E,T,NewT).
 add2end(E,[],[E]).
 
 %% DEPRECATED
@@ -322,3 +348,7 @@ add2end(E,[],[E]).
 %% 	find_optimal_task(Tasks, Time, HTask, Core, ResultTask, ResultCore).
 %% find_optimal_task([_|Tasks], Min, CurTask, CurCore, ResultTask, ResultCore) :-
 %% 	find_optimal_task(Tasks, Min, CurTask, CurCore, ResultTask, ResultCore).
+
+test_large(ET) :-
+	find_heuristically(S),
+	execution_time(S,ET).
