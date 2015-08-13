@@ -148,10 +148,14 @@ etime_nondeps([HNonDeps|TNonDeps], ScheduleList, ProcessedNonDeps, CoresSchedule
 	max(PreviousET, CoreET, NewET),
 	etime_nondeps(TNonDeps, ScheduleList, [HNonDeps|ProcessedNonDeps], [Core|CoresScheduled], NewET, ET).
 
-
+%% channel_cost_to_deps(+ScheduleList, +Tasks, -ChCost)
+%% Computes communication costs of 'Tasks' according to 
+%% the schedule given in 'ScheduleList'
 channel_cost_to_deps(ScheduleList, Tasks, ChCost) :-
 	channel_cost_to_deps(ScheduleList, Tasks, 0, ChCost).
 
+%% Iterates over Tasks
+%% Compute for each task the channel cost to its dependencies
 channel_cost_to_deps(_, [], ChCost, ChCost) :- !.
 channel_cost_to_deps(ScheduleList, [HTask|TTasks], PreviousCost, ChCost) :-
 	findall(Dep, depends_on(Dep, HTask,_), Deps),	% TO MODIFY when bandwidth is considered
@@ -159,6 +163,7 @@ channel_cost_to_deps(ScheduleList, [HTask|TTasks], PreviousCost, ChCost) :-
 	NewCost is PreviousCost + DepCost,
 	channel_cost_to_deps(ScheduleList, TTasks, NewCost, ChCost).
 
+%% Iterates over dependencies 'Deps' of one task 'Task'
 channel_cost_task_deps(ScheduleList, Task, Deps, Cost) :-
 	channel_cost_task_deps(ScheduleList, Task, Deps, 0, Cost).
 
@@ -174,8 +179,6 @@ channel_cost_task_deps(ScheduleList, Task, [HDeps|TDeps], PreviousCost, Cost) :-
 	channel(TaskCore, DepCore, Latency, _), 	% <- TO MODIFY when bandwidth is considered
 	NewCost is PreviousCost + Latency,	% CASE2: Tasks are scheduled on different cores => comm. costs
 	channel_cost_task_deps(ScheduleList, Task, TDeps, NewCost, Cost).
-
-
 
 
 % max(?X, ?Y, ?Max)
