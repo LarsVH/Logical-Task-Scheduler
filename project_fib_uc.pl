@@ -77,7 +77,10 @@ set_diff([_|Y],Set2,Diff):-
 
 % execution_time(+S,-ET)
 % Expects a valid scheduling solution and returns its Execution Time
-execution_time(solution(ScheduleList), ET) :-
+execution_time(S, ET) :-
+	execution_time(S,_,ET).
+
+execution_time(solution(ScheduleList), FinalTmstpSchedule, ET) :-	%% Used by 'pretty_print'
 	timestamped_schedule(ScheduleList, TmstpSchedule),
 	get_schedule_tasks(ScheduleList, Tasks),	
 	execution_time(ScheduleList, TmstpSchedule, Tasks, [], FinalTmstpSchedule), !,
@@ -427,11 +430,40 @@ add2end(E,[],[E]).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% pretty_print(+S)
+pretty_print(solution(S)) :-
+	execution_time(solution(S), TmstpSchedule, ET),
+	write('\n'),
+	write('========================'), write('\n'),
+	write('Schedule:'), write('\n'),
+	write('------------------------'), write('\n'),
+	[schedule(Core, Tasks)|Cores] = S,
+	write('>>> Core: '), write(Core), write('\n'),
+	pretty_print_loop(S), !,
+	write('Execution Time: '), write(ET), write('\n'),
+	write('========================'), write('\n'),
+	write('Timestamped per task: '), write('\n'),
+	write(TmstpSchedule), write('\n'),
+	write('========================'), write('\n').
+
+pretty_print_loop([]) :-
+	write('========================'), write('\n').
+pretty_print_loop([schedule(Core, [HTask|Tasks])|Cores]) :-
+	write('> Task: '), write(HTask), write('\n'),
+	pretty_print_loop([schedule(Core, Tasks)|Cores]).
+pretty_print_loop([schedule(_, []), schedule(Core, Tasks)|Cores]) :-
+	write('>>> Core: '), write(Core), write('\n'),
+	pretty_print_loop([schedule(Core, Tasks)|Cores]).
+pretty_print_loop([schedule(_,[])| Cores]) :-
+	pretty_print_loop(Cores).
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 test_large(ET) :-
 	find_heuristically(S),
 	execution_time(S,ET).
 
-test_optimal(ET) :-
+test_optimal(S, ET) :-
 	find_optimal(S),
 	execution_time(S,ET).
