@@ -121,11 +121,17 @@ etime_deps(ScheduleList, Task, Core, Deps, TmstpSchedule, DataTmstp) :-
 	etime_deps(ScheduleList, Task, Core, Deps, TmstpSchedule, 0, DataTmstp).
 
 etime_deps(_,_,_,[],_, FinalDataTmstp, FinalDataTmstp) :- !.
+etime_deps(ScheduleList, Task, TaskCore,[HDep|Deps], TmstpSchedule, CurrentMax, FinalDataTmstp) :-
+	scheduled_on_core(HDep, ScheduleList, DepCore),
+	DepCore = TaskCore, !,		%% CASE1: Dependency and task are scheduled on same core
+	task_timestamp(HDep, TmstpSchedule, DepTmstp),
+	max(CurrentMax, DepTmstp, NewMax),
+	etime_deps(ScheduleList, Task, TaskCore, Deps, TmstpSchedule, NewMax, FinalDataTmstp).
 etime_deps(ScheduleList, Task, TaskCore, [HDep|Deps], TmstpSchedule, CurrentMax, FinalDataTmstp) :-
 	task_timestamp(HDep, TmstpSchedule, DepTmstp),
 	scheduled_on_core(HDep, ScheduleList, DepCore),
 	channel(DepCore, TaskCore, Latency,_), 			%% To modify when bandwidth is used
-	DataTmstp is DepTmstp + Latency,
+	DataTmstp is DepTmstp + Latency,	%% CASE2: Dependency and task scheduled on diff cores
 	max(CurrentMax, DataTmstp, NewMax),
 	etime_deps(ScheduleList, Task, TaskCore, Deps, TmstpSchedule, NewMax, FinalDataTmstp).
 
