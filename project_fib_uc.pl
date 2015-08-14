@@ -78,22 +78,130 @@ set_diff([_|Y],Set2,Diff):-
 % execution_time(+S,-ET)
 % Expects a valid scheduling solution and returns its Execution Time
 execution_time(solution(ScheduleList), ET) :-
-	get_schedule_tasks(ScheduleList, Tasks),
-	execution_time(ScheduleList, Tasks, [], 0, ET). % ScheduleList, DepSortTasks, Processed, PreviousET, ET
-% ScheduleList: List of schedules in format [schedule(CoreS, [TaskX,...,TaskY]),..., schedule(CoreZ, [TaskZ,...])]
-% Tasks: All tasks in the schedule to be considered on order to compute ET
-% PreviousET: (Accumulator): Maximum ET computed until now. Becomes the final ET when end of 'Tasks' is reached
-% ET: Final execution time
-execution_time(_, [],_, ET, ET) :- !.
-execution_time(ScheduleList, Tasks, ProcessedTasks, PreviousET, ET) :-
+	timestamped_schedule(ScheduleList, TmstpSchedule),
+	get_schedule_tasks(ScheduleList, Tasks),	
+	execution_time(ScheduleList, TmstpSchedule, Tasks, [], FinalTmstpSchedule), !,
+	max_of_timestamps(FinalTmstpSchedule, ET).
+
+execution_time(_, FinalTmstpSchedule, [],_, FinalTmstpSchedule) :- !.
+execution_time(ScheduleList, TmstpSchedule, Tasks, ProcessedTasks, FinalTmstpSchedule) :-	
 	get_no_dep_tasks(Tasks, NoDepTasks),
 	have_only_processed_tasks_before(NoDepTasks, ScheduleList, ProcessedTasks, OPTBeforeTasks),
-	etime_nondeps(OPTBeforeTasks, ScheduleList, NonDepET), !,
-	channel_cost_to_deps(ScheduleList, OPTBeforeTasks, ChCost),
-	NextET is PreviousET + NonDepET + ChCost,
-	set_diff_strict(Tasks, OPTBeforeTasks, NextTasks), %% remove only tasks having only processed tasks scheduled before them
+	etime_tasks(ScheduleList, OPTBeforeTasks, TmstpSchedule, ResTmstpSchedule),
+	set_diff_strict(Tasks, OPTBeforeTasks, NewTasks),
 	append(OPTBeforeTasks, ProcessedTasks, NewProcessedTasks),
-	execution_time(ScheduleList, NextTasks, NewProcessedTasks, NextET, ET).
+	execution_time(ScheduleList, ResTmstpSchedule, NewTasks,  NewProcessedTasks, FinalTmstpSchedule).
+
+
+%% etime_tasks(+ScheduleList, +Tasks, +TmstpSchedule, -ResTmstpSchedule)
+%% Fills in timestamps of 'Tasks' in 'TmstpSchedule' based on 'ScheduleList'
+%% resulting in 'ResTmstpSchedule'
+%% Given 'Tasks', their dependencies are retrieved. For each of these dependencies,
+%% etime_deps then calculates at what timestamp 'DataTmstp' the last chunk of data arrives.
+%% Based on 'DataTmstp', delay caused by the channel 'ChannelDelay' is computed on which 
+%% 'channel_task_timestamp' can compute the final timestamp of the task 'TaskTimeStamp' which
+%% is inserted into 'TmstpSchedule' by 'insert_timestamp' before proceeding to the next task
+etime_tasks(_, [], FinalTmstpSchedule, FinalTmstpSchedule).
+etime_tasks(ScheduleList, [HTask|Tasks], TmstpSchedule, FinalTmstpSchedule) :-
+	findall(Dep, depends_on(HTask, Dep,_), Deps),
+	scheduled_on_core(HTask, ScheduleList, Core),
+	etime_deps(ScheduleList, HTask, Core, Deps, TmstpSchedule, DataTmstp),
+	prev_task_timestamp(HTask, TmstpSchedule, PrevTaskTmstp),
+	ChannelDelay is DataTmstp - PrevTaskTmstp,
+	channel_task_timestamp(HTask, Core, PrevTaskTmstp, ChannelDelay, TaskTimeStamp),
+	insert_timestamp(HTask, Core, TmstpSchedule, TaskTimeStamp, ResTmstpSchedule),
+	etime_tasks(ScheduleList, Tasks, ResTmstpSchedule, FinalTmstpSchedule).
+
+
+%% etime_deps(+ScheduleList, +Task, +Core, +Deps, +TmstpSchedule, -DataTmstp)
+%% Computes the timestamp at which the last chunk of data 
+%% arrives from the dependent tasks 'Deps' of 'Task'
+%% according to 'ScheduleList'
+etime_deps(ScheduleList, Task, Core, Deps, TmstpSchedule, DataTmstp) :-
+	etime_deps(ScheduleList, Task, Core, Deps, TmstpSchedule, 0, DataTmstp).
+
+etime_deps(_,_,_,[],_, FinalDataTmstp, FinalDataTmstp) :- !.
+etime_deps(ScheduleList, Task, TaskCore, [HDep|Deps], TmstpSchedule, CurrentMax, FinalDataTmstp) :-
+	task_timestamp(HDep, TmstpSchedule, DepTmstp),
+	scheduled_on_core(HDep, ScheduleList, DepCore),
+	channel(DepCore, TaskCore, Latency,_), 			%% To modify when bandwidth is used
+	DataTmstp is DepTmstp + Latency,
+	max(CurrentMax, DataTmstp, NewMax),
+	etime_deps(ScheduleList, Task, TaskCore, Deps, TmstpSchedule, NewMax, FinalDataTmstp).
+
+
+%% channel_task_timestamp(+Task, +PrevTaskTmstp, + ChannelDelay, -TaskTimeStamp)
+%% Computes the timestamp 'TaskTimeStamp' at which 'Task' completes, taking
+%% 'PrevTaskTmstp' and 'ChannelDelay' into account. If 'ChannelDelay' is negative,
+%% the channel does not cause any delay on the core. The task can be processed
+%% immediately after its predecessor. If 'ChannelDelay' is positive, the executing
+%% core has to wait for 'ChannelDelay' time after the predecessor has been processed.
+channel_task_timestamp(Task, Core, PrevTaskTmstp, ChannelDelay, TaskTimeStamp) :-
+	ChannelDelay =< 0, !,
+	process_cost(Task, Core, TaskTime),
+	TaskTimeStamp is PrevTaskTmstp + TaskTime.
+channel_task_timestamp(Task, Core, PrevTaskTmstp, ChannelDelay, TaskTimeStamp) :-
+	ChannelDelay >= 0,
+	process_cost(Task, Core, TaskTime),
+	TaskTimeStamp is PrevTaskTmstp + ChannelDelay + TaskTime.
+
+
+%% max_of_timestamps(+TmstpSchedule, -Max)
+%% Returns the highest timsestamp 'Max' in TmstpSchedule
+max_of_timestamps(TmstpSchedule, Max) :-
+	max_of_timestamps(TmstpSchedule, 0, Max).
+
+max_of_timestamps([], Max, Max).
+max_of_timestamps([sch(Core, [[_, Tmstp]|Tasks])|Cores], CurrMax, Max) :- !,
+	max(CurrMax, Tmstp, NewMax),
+	max_of_timestamps([sch(Core, Tasks)|Cores], NewMax, Max).
+max_of_timestamps([sch(_, [])|Cores], CurrMax, Max) :-
+	max_of_timestamps(Cores, CurrMax, Max).
+
+
+%% task_timestamp(+Task, +TmstpSchedule, -TimeStamp)
+%% Retrieves the 'Timestamp' of 'Task' from 'TmstpSchedule'
+task_timestamp(Task, [sch(_, [[Task, TimeStamp]|_])|_], TimeStamp).
+task_timestamp(MTask, [sch(_,[])|Cores], TimeStamp) :-
+	task_timestamp(MTask, Cores, TimeStamp), !.
+task_timestamp(MTask, [sch(Core, [[_,_]|Tasks])|Cores], TimeStamp) :-
+	task_timestamp(MTask, [sch(Core, Tasks)|Cores], TimeStamp).
+
+
+%% insert_timestamp(+Task, +Core, +TmstpSchedule, +TimeStamp, -ResSchedule)
+%% Changes the timestamp of 'Task' scheduled on 'Core' in 'TmstpSchedule' to 'TimeStamp',
+%% returning 'ResSchedule'. The use of 'Core' is not mandatory for the algorithm, but is used here
+%% to improve efficiency
+insert_timestamp(Task, Core, [sch(Core, [[Task,_]|Tasks])|Cores], TimeStamp, [sch(Core, [[Task, TimeStamp]|Tasks])|Cores]).
+insert_timestamp(Task, Core, [sch(Core, [[HTask, HTaskTmstp]|Tasks])|Cores], TimeStamp, [sch(Core, [[HTask, HTaskTmstp]|ResTasks])|ResCores]) :-
+	insert_timestamp(Task, Core, [sch(Core, Tasks)|Cores], TimeStamp, [sch(Core, ResTasks)|ResCores]).
+insert_timestamp(Task, Core, [sch(HCore, Tasks)|Cores], TimeStamp, [sch(HCore, Tasks)|ResCores]) :-
+	insert_timestamp(Task, Core, Cores, TimeStamp, ResCores), !.
+
+
+%% prev_task_timestamp(+Task, +TmstpSchedule, -TimeStamp)
+%% Retrieves the timestamp of the predecessing task of 'Task'
+%% according to TmstpSchedule; If no predecessor on the same core
+%% exists, 'TimeStamp' is set to 0
+prev_task_timestamp(Task, TmstpSchedule, TimeStamp) :-
+	prev_task_timestamp(Task, TmstpSchedule, [_, 0], TimeStamp).
+
+prev_task_timestamp(Task, [sch(_, [[Task,_]|_])|_], [_, TimeStamp], TimeStamp).
+prev_task_timestamp(MTask, [sch(Core, [TaskTmstp|TasksTmstps])|Cores],_,TimeStamp) :-
+	prev_task_timestamp(MTask, [sch(Core, TasksTmstps)|Cores], TaskTmstp, TimeStamp), !.
+prev_task_timestamp(MTask, [sch(_, [])|Cores], _, TimeStamp) :-
+	prev_task_timestamp(MTask, Cores, [_,0], TimeStamp).
+	
+
+%% timestamped_schedule(+ScheduleList, -TstpSchedule)
+%% Creates an empty timestamped schedule 'TstpSchedule'
+%% in accordance with 'ScheduleList'
+timestamped_schedule([],[]).
+timestamped_schedule([schedule(Core, [])|Cores], [sch(Core, [])|TstpCores]) :-
+	timestamped_schedule(Cores, TstpCores), !.
+timestamped_schedule([schedule(Core, [HTask|Tasks])|Cores], [sch(Core, [[HTask,0]|TstpTasks])|TstpCores]) :-
+	timestamped_schedule([schedule(Core, Tasks)|Cores], [sch(Core, TstpTasks)|TstpCores]).
+
 
 %% have_only_processed_tasks_before(+Tasks, +ScheduleList, +ProcessedTasks, -OPTBeforeTasks)
 %% Returns 'OPTBeforeTasks' containing only those tasks in 'Tasks' having only processed tasks
@@ -118,68 +226,6 @@ has_only_processed_tasks_before(Task, [Task|_],_) :- !.
 has_only_processed_tasks_before(Task, [HTask|TTasks], ProcessedTasks) :-
 	member(HTask, ProcessedTasks), !,
 	has_only_processed_tasks_before(Task, TTasks, ProcessedTasks).
-
-
-%% etime_nondeps(+NonDeps, +ScheduleList, -ET)
-%% Computes the execution time of tasks 'NonDeps' according
-%% to the schedule given by 'ScheduleList'
-%% Only the tasks in 'NonDeps' are considered
-etime_nondeps(NonDeps, ScheduleList, ET) :-
-	etime_nondeps(NonDeps, ScheduleList, [], [], 0, ET).
-%% NonDeps: Tasks of which ET has to be computed
-%% ScheduleList: List of schedules in which 'NonDeps' are scheduled
-%% ProcessedNonDeps: 'NonDeps' tasks already considered in recursion
-%% CoresScheduled: Cores already considered in recursion
-%% PreviousET: ET at certain point in recursion (can only become larger)
-%% ET: Final execution time
-etime_nondeps([],_,_,_, ET, ET).
-etime_nondeps([HNonDeps|TNonDeps], ScheduleList, ProcessedNonDeps, CoresScheduled, PreviousET, ET) :-
-	scheduled_on_core(HNonDeps, ScheduleList, Core),
-	member(Core, CoresScheduled), !,					% CASE1: the core has already tasks scheduled
-	core_scheduled_tasks(Core, ScheduleList, CoreTasks),
-	intersection(CoreTasks, ProcessedNonDeps, CurrCoreTasks), % Only processed NonDep tasks should be considered
-	core_time(Core, [HNonDeps|CurrCoreTasks], CoreET),
-	max(PreviousET, CoreET, NewET),
-	etime_nondeps(TNonDeps, ScheduleList, [HNonDeps|ProcessedNonDeps], CoresScheduled, NewET, ET).
-etime_nondeps([HNonDeps|TNonDeps], ScheduleList, ProcessedNonDeps, CoresScheduled, PreviousET, ET) :- 
-	% CASE2: Core has not yet any tasks scheduled
-	scheduled_on_core(HNonDeps, ScheduleList, Core),
-	core_time(Core, [HNonDeps], CoreET),
-	max(PreviousET, CoreET, NewET),
-	etime_nondeps(TNonDeps, ScheduleList, [HNonDeps|ProcessedNonDeps], [Core|CoresScheduled], NewET, ET).
-
-%% channel_cost_to_deps(+ScheduleList, +Tasks, -ChCost)
-%% Computes communication costs of 'Tasks' according to 
-%% the schedule given in 'ScheduleList'
-channel_cost_to_deps(ScheduleList, Tasks, ChCost) :-
-	channel_cost_to_deps(ScheduleList, Tasks, 0, ChCost).
-
-%% Iterates over Tasks
-%% Compute for each task the channel cost to its dependencies
-channel_cost_to_deps(_, [], ChCost, ChCost) :- !.
-channel_cost_to_deps(ScheduleList, [HTask|TTasks], PreviousCost, ChCost) :-
-	findall(Dep, depends_on(Dep, HTask,_), Deps),	% TO MODIFY when bandwidth is considered
-	channel_cost_task_deps(ScheduleList, HTask, Deps, DepCost),
-	NewCost is PreviousCost + DepCost,
-	channel_cost_to_deps(ScheduleList, TTasks, NewCost, ChCost).
-
-%% Iterates over dependencies 'Deps' of one task 'Task'
-channel_cost_task_deps(ScheduleList, Task, Deps, Cost) :-
-	channel_cost_task_deps(ScheduleList, Task, Deps, 0, Cost).
-
-channel_cost_task_deps(_,_, [], Cost, Cost) :- !.
-channel_cost_task_deps(ScheduleList, Task, [HDeps|TDeps], PreviousCost, Cost) :-
-	scheduled_on_core(Task, ScheduleList, TaskCore),
-	scheduled_on_core(HDeps, ScheduleList, DepCore),
-	TaskCore = DepCore,	!,				% CASE1: Both tasks are scheduled on same core => no comm. costs
-	channel_cost_task_deps(ScheduleList, Task, TDeps, PreviousCost, Cost).
-channel_cost_task_deps(ScheduleList, Task, [HDeps|TDeps], PreviousCost, Cost) :-
-	scheduled_on_core(Task, ScheduleList, TaskCore),
-	scheduled_on_core(HDeps, ScheduleList, DepCore),
-	channel(TaskCore, DepCore, Latency, _), 	% <- TO MODIFY when bandwidth is considered
-	NewCost is PreviousCost + Latency,	% CASE2: Tasks are scheduled on different cores => comm. costs
-	channel_cost_task_deps(ScheduleList, Task, TDeps, NewCost, Cost).
-
 
 % max(?X, ?Y, ?Max)
 % Returns the maximum of X and Y
@@ -261,6 +307,8 @@ core_time(Core, [HTask|Tasks], TotalTime) :-
 % Computes an optimal schedule S
 find_optimal(_) :-
 	optimal_sequential(ET1),
+	%% TWEAK: TO Remove
+	%%ET1 = 1000,
 	ET2 is ET1 + 1,
 	assert(best(nil, ET2)),
 	find_solution(S),
@@ -370,17 +418,9 @@ get_no_dep_tasks(Tasks, NonDeps) :-
 add2end(E,[H|T],[H|NewT]) :- add2end(E,T,NewT).
 add2end(E,[],[E]).
 
-%% DEPRECATED
-%% find_optimal_task(Tasks, ResultTask, ResultCore) :-
-%% 	find_optimal_task(Tasks, 1000000, nil, nil, ResultTask, ResultCore).
 
-%% find_optimal_task([],_, Task, Core, Task, Core).
-%% find_optimal_task([HTask|Tasks], Min,_,_, ResultTask, ResultCore) :-
-%% 	process_cost(HTask, Core, Time),
-%% 	Time =< Min, !,
-%% 	find_optimal_task(Tasks, Time, HTask, Core, ResultTask, ResultCore).
-%% find_optimal_task([_|Tasks], Min, CurTask, CurCore, ResultTask, ResultCore) :-
-%% 	find_optimal_task(Tasks, Min, CurTask, CurCore, ResultTask, ResultCore).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 test_large(ET) :-
 	find_heuristically(S),
