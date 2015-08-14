@@ -43,7 +43,8 @@ check_trans_dependencies([HDep|Deps], TaskList) :-
 	check_trans_dependencies(Deps, TaskList).
 
 
-%delete_first(E,L1,L2): L2 is L1 with the first occurance of E removed, fails if E does not occur in L1.
+%% delete_first(E,L1,L2)
+%% L2 is L1 with the first occurance of E removed, fails if E does not occur in L1.
 delete_first(E,[E|T],T) :- !.
 delete_first(E,[H|T1],[H|T2]) :- 
 	delete_first(E,T1,T2).
@@ -70,17 +71,14 @@ set_diff([X|Y],Set2,Res):-
 set_diff([_|Y],Set2,Diff):-
 	set_diff(Y,Set2,Diff).
 
-%% Test queries
-% isSolution(solution([schedule(c1,[t1]), schedule(c2,[t2,t7]), schedule(c3, [t3,t6]), schedule(c4, [t4,t5])])).
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% execution_time(+S,-ET)
-% Expects a valid scheduling solution and returns its Execution Time
+%% execution_time(+S,-ET)
+%% Expects a valid scheduling solution and returns its Execution Time
 execution_time(S, ET) :-
 	execution_time(S,_,ET).
 
-execution_time(solution(ScheduleList), FinalTmstpSchedule, ET) :-	%% Used by 'pretty_print'
+execution_time(solution(ScheduleList), FinalTmstpSchedule, ET) :-	%% Used by 'pretty_print', returns also TmstpSchedule
 	timestamped_schedule(ScheduleList, TmstpSchedule),
 	get_schedule_tasks(ScheduleList, Tasks),	
 	execution_time(ScheduleList, TmstpSchedule, Tasks, [], FinalTmstpSchedule), !,
