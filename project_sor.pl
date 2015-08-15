@@ -466,10 +466,8 @@ pretty_print(solution(S)) :-
 	write(TmstpSchedule), write('\n'),
 	write('============================='), write('\n'),
 	write('Timeline View (starttimes)'), write('\n'),
-	write('------------------------'), write('\n'),
+	write('-----------------------------'), write('\n'),
 	print_timeline(TmstpSchedule),
-	Max is ET + 50,
-	write('  '), print_axis(Max),
 	write('============================='), write('\n').
 
 
@@ -484,43 +482,30 @@ pretty_print_loop([schedule(_, []), schedule(Core, Tasks)|Cores]) :-
 pretty_print_loop([schedule(_,[])|Cores]) :-
 	pretty_print_loop(Cores).
 
+% print_timeline(+TmstpSchedule)
+%% Extention to 'pretty_print'
+%% Prints a timeline on which the user can see
+%% which tasks are executed after another, parallell, etc.
+%% in a more visual way
 print_timeline(TmstpSchedule) :-
 	[sch(Core,_)|_] = TmstpSchedule,
 	write(Core),
 	print_timeline_loop(TmstpSchedule, 0).
 
 print_timeline_loop([],_) :-
-	write('\n').
+	write('\n'), !.
 print_timeline_loop([sch(CurrCore, [[CurrTask,Tmstp]|Tasks])|Cores], PrevTmstp) :-
 	RelTmstp is Tmstp / 10,
 	Spaces is RelTmstp - PrevTmstp,
 	write_spaces(Spaces),
-	write(CurrTask),
+	write(CurrTask), !,
 	print_timeline_loop([sch(CurrCore, Tasks)|Cores], RelTmstp).
 print_timeline_loop([sch(_,[]), sch(Core, Tasks)|Cores],_) :-
 	write('\n'),
-	write(Core),
+	write(Core), !,
 	print_timeline_loop([sch(Core, Tasks)|Cores], 0).
 print_timeline_loop([sch(_,[])|Cores],_) :-
 	print_timeline_loop(Cores, 0).
-
-print_axis(Max) :-
-	print_axis_loop(Max, 0).
-print_axis_loop(Max, CurrPos) :-
-	MaxCheck is CurrPos * 10,
-	MaxCheck >= Max, !,
-	write('>'), write('\n').
-print_axis_loop(Max, CurrPos) :-
-	MarkCheck is CurrPos mod 5,
-	MarkCheck = 0, !,
-	write('|'),
-	NewPos is CurrPos + 1,
-	print_axis_loop(Max, NewPos).
-print_axis_loop(Max, CurrPos) :-
-	write('-'),
-	NewPos is CurrPos + 1,
-	print_axis_loop(Max, NewPos).
-
 
 write_spaces(Spaces) :- 
 	Spaces =< 0, !.
