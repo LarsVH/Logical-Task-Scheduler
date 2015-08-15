@@ -40,7 +40,6 @@ check_trans_dependencies([HDep|Deps], TaskList) :-
 	check_trans_dependencies(TransDeps, TaskList),
 	check_trans_dependencies(Deps, TaskList).
 
-
 % delete_first(E,L1,L2)
 %% L2 is L1 with the first occurance of E removed, fails if E does not occur in L1.
 delete_first(E,[E|T],T) :- !.
@@ -76,12 +75,20 @@ set_diff([_|Y],Set2,Diff):-
 execution_time(S, ET) :-
 	execution_time(S,_,ET).
 
-execution_time(solution(ScheduleList), FinalTmstpSchedule, ET) :-	%% Used by 'pretty_print', returns also TmstpSchedule
+% execution_time(+S, -FinalTmstpSchedule, -ET)
+%% Extended version of execution_time also returning 
+%% a timestamped version of the schedule (for each task when it ends)
+execution_time(solution(ScheduleList), FinalTmstpSchedule, ET) :-
 	timestamped_schedule(ScheduleList, TmstpSchedule),
 	get_schedule_tasks(ScheduleList, Tasks),	
 	execution_time(ScheduleList, TmstpSchedule, Tasks, [], FinalTmstpSchedule), !,
 	max_of_timestamps(FinalTmstpSchedule, ET).
 
+% execution_time(+ScheduleList, +TmstpSchedule, +Tasks, +ProcessedTasks, FinalTmstpSchedule)
+%% Gets tasks from 'Tasks' having no dependencies in current iteration  and are not 'blocked'
+%% by other tasks that have to be executed before them.
+%% Timestamps are then computed for this tasks and filled in 'TmstpSchedule' and they are moved 
+%% from 'Tasks' to 'ProcessedTasks', initiating a new iteration.
 execution_time(_, FinalTmstpSchedule, [],_, FinalTmstpSchedule) :- !.
 execution_time(ScheduleList, TmstpSchedule, Tasks, ProcessedTasks, FinalTmstpSchedule) :-	
 	get_no_dep_tasks(Tasks, NoDepTasks),
@@ -393,37 +400,20 @@ find_heuristically_core(Task, [HCore|Cores], ScheduleList,_, PrevBestET, FinalBe
 find_heuristically_core(Task, [_|Cores], ScheduleList, PrevBestCore, PrevBestET, FinalBestCore) :-
 	find_heuristically_core(Task, Cores, ScheduleList, PrevBestCore, PrevBestET, FinalBestCore).
 
-%% TODO REMOVE
-%% find_heuristically([],_, ScheduleList, ScheduleList).
-%% find_heuristically([HTask|Tasks], Cores, CurrSchedule, ScheduleList) :-
-%% 	most_inactive_core(CurrSchedule, Core),
-%% 	add_to_core(HTask, Core, CurrSchedule, ResultSchedule),
-%% 	find_heuristically(Tasks, Cores, ResultSchedule, ScheduleList).
-
 % create_empty_schedule(+Cores, -Schedule)
+%% Creates a blank schedulelist 'Schedule' 
+%% (schedule(c1,[t1,t2,...]), schedule(c2,...),...)
+%% from the given list of cores 'Cores'
 create_empty_schedule([], []).
 create_empty_schedule([HCore|Cores], [schedule(HCore, [])|Schedule]) :-
 	create_empty_schedule(Cores, Schedule).
 
 % add_to_core(+Task, +Core, +ScheduleList, -ResultScheduleList)
-%% Append a task to a core in a ScheduleList
+%% Add a task 'Task' as last task to a core 'Core' in 'ScheduleList'
 add_to_core(Task, Core, [schedule(Core, Tasks)|Cores], [schedule(Core, NewCoreSchedule)|Cores]) :-
 	add2end(Task, Tasks, NewCoreSchedule), !.
 add_to_core(Task, Core, [schedule(CurrCore, Tasks)|Cores], [schedule(CurrCore, Tasks)|RCores]) :-
 	add_to_core(Task, Core, Cores, RCores).
-
-% most_inactive_core(+ScheduleList, -ResultCore)
-%% Returns a core 'ResultCore' with lowest time occupancy according to 'ScheduleList'
-most_inactive_core(ScheduleList, ResultCore) :-
-	most_inactive_core(ScheduleList, 1000000,_, ResultCore).
-
-most_inactive_core([],_, ResultCore, ResultCore).
-most_inactive_core([schedule(Core, Tasks)|Schedules], CurrTime,_, ResultCore) :-
-	core_time(Core, Tasks, Time),
-	Time =< CurrTime, !,
-	most_inactive_core(Schedules, Time, Core, ResultCore).
-most_inactive_core([schedule(_,_)|Schedules], CurrTime, CurrCore, ResultCore) :-
-	most_inactive_core(Schedules, CurrTime, CurrCore, ResultCore).
 
 
 % sort_by_dependencies(+Tasks, -Sorted)
@@ -457,6 +447,7 @@ add2end(E,[],[E]).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % pretty_print(+S)
+%% Prints a solution 'S' in a human readable format
 pretty_print(solution(S)) :-
 	execution_time(solution(S), TmstpSchedule, ET),
 	write('\n'),
@@ -489,14 +480,15 @@ pretty_print_loop([schedule(_,[])| Cores]) :-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-test_large(ET) :-
-	find_heuristically(S),
-	execution_time(S,ET).
-
+% test_optimal(-S, -ET)
+%% Predicate for testing optimal
+%% Returns the solution 'S' found and its execution_time
 test_optimal(S, ET) :-
 	find_optimal(S),
 	execution_time(S,ET).
 
+% test_heuristically(-S, -ET)
+%% Analog to test-optimal
 test_heuristically(S, ET) :-
 	find_heuristically(S),
 	execution_time(S, ET).
