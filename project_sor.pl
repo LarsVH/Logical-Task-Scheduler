@@ -240,6 +240,7 @@ has_only_processed_tasks_before(Task, [HTask|TTasks], ProcessedTasks) :-
 max(X,Y,Y) :- X =< Y, !.
 max(X,Y,X) :- X > Y. 
 
+
 % get_schedule_tasks(+ScheduleList, -Tasks)
 %% Expects a list of schedules 'ScheduleList' and extracts its tasks.
 get_schedule_tasks([], []).
@@ -362,15 +363,42 @@ find_solution([CurrCore|Cores], Tasks, AccSchedule, ScheduleList) :-	% Switch to
 find_heuristically(S) :-
 	findall(Core, core(Core), Cores),
 	findall(Task, task(Task), Tasks),
+	sort_by_dependencies(Tasks, [HDepTask|DepTasks]),
 	create_empty_schedule(Cores, InitScheduleList),
-	find_heuristically(Tasks, Cores, InitScheduleList, ScheduleList), !,
-	S = solution(ScheduleList).
+	find_heuristically([HDepTask|DepTasks], Cores, InitScheduleList, FinalScheduleList), !,
+	S = solution(FinalScheduleList).
 
-find_heuristically([],_, ScheduleList, ScheduleList).
-find_heuristically([HTask|Tasks], Cores, CurrSchedule, ScheduleList) :-
-	most_inactive_core(CurrSchedule, Core),
-	add_to_core(HTask, Core, CurrSchedule, ResultSchedule),
-	find_heuristically(Tasks, Cores, ResultSchedule, ScheduleList).
+% find_heuristically(+Tasks, +Cores, +PrevScheduleList, -FinalScheduleList)
+%% Helper for find_heuristically, iterating over tasks
+find_heuristically([],_,FinalScheduleList,FinalScheduleList) :- !.
+find_heuristically([HTask|Tasks], Cores, PrevScheduleList, FinalScheduleList) :-	
+	find_heuristically_core(HTask, Cores, PrevScheduleList, BestCore),
+	add_to_core(HTask, BestCore, PrevScheduleList, NextScheduleList),
+	find_heuristically(Tasks, Cores, NextScheduleList, FinalScheduleList).
+
+
+% find_heuristically_core(+Task, +Cores, +ScheduleList, -FinalBestCore)
+%% Helper for find_heuristically, iterating over cores (per task)
+find_heuristically_core(Task, [HCore|Cores], ScheduleList, FinalBestCore) :-
+	add_to_core(Task, HCore, ScheduleList, SimulatedScheduleList),
+	execution_time(solution(SimulatedScheduleList), SimulatedET),
+	find_heuristically_core(Task, Cores, ScheduleList, HCore, SimulatedET, FinalBestCore).
+
+find_heuristically_core(_, [],_, FinalBestCore,_, FinalBestCore) :- !.
+find_heuristically_core(Task, [HCore|Cores], ScheduleList,_, PrevBestET, FinalBestCore) :-
+	add_to_core(Task, HCore, ScheduleList, SimulatedScheduleList),
+	execution_time(solution(SimulatedScheduleList), CurrET),
+	CurrET =< PrevBestET, !,
+	find_heuristically_core(Task, Cores, ScheduleList, HCore, CurrET, FinalBestCore).
+find_heuristically_core(Task, [_|Cores], ScheduleList, PrevBestCore, PrevBestET, FinalBestCore) :-
+	find_heuristically_core(Task, Cores, ScheduleList, PrevBestCore, PrevBestET, FinalBestCore).
+
+%% TODO REMOVE
+%% find_heuristically([],_, ScheduleList, ScheduleList).
+%% find_heuristically([HTask|Tasks], Cores, CurrSchedule, ScheduleList) :-
+%% 	most_inactive_core(CurrSchedule, Core),
+%% 	add_to_core(HTask, Core, CurrSchedule, ResultSchedule),
+%% 	find_heuristically(Tasks, Cores, ResultSchedule, ScheduleList).
 
 % create_empty_schedule(+Cores, -Schedule)
 create_empty_schedule([], []).
@@ -380,14 +408,14 @@ create_empty_schedule([HCore|Cores], [schedule(HCore, [])|Schedule]) :-
 % add_to_core(+Task, +Core, +ScheduleList, -ResultScheduleList)
 %% Append a task to a core in a ScheduleList
 add_to_core(Task, Core, [schedule(Core, Tasks)|Cores], [schedule(Core, NewCoreSchedule)|Cores]) :-
-	add2end(Task, Tasks, NewCoreSchedule).
+	add2end(Task, Tasks, NewCoreSchedule), !.
 add_to_core(Task, Core, [schedule(CurrCore, Tasks)|Cores], [schedule(CurrCore, Tasks)|RCores]) :-
 	add_to_core(Task, Core, Cores, RCores).
 
 % most_inactive_core(+ScheduleList, -ResultCore)
 %% Returns a core 'ResultCore' with lowest time occupancy according to 'ScheduleList'
 most_inactive_core(ScheduleList, ResultCore) :-
-	most_inactive_core(ScheduleList,1000000,_, ResultCore).
+	most_inactive_core(ScheduleList, 1000000,_, ResultCore).
 
 most_inactive_core([],_, ResultCore, ResultCore).
 most_inactive_core([schedule(Core, Tasks)|Schedules], CurrTime,_, ResultCore) :-
@@ -468,3 +496,7 @@ test_large(ET) :-
 test_optimal(S, ET) :-
 	find_optimal(S),
 	execution_time(S,ET).
+
+test_heuristically(S, ET) :-
+	find_heuristically(S),
+	execution_time(S, ET).
