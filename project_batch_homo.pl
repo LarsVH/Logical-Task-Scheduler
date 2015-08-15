@@ -1,6 +1,6 @@
 % isSolution(+S)
-% Checks if S is a valid solution by checking if all cores and tasks are 
-% represented exactly once
+%% Checks if S is a valid solution by checking if all cores and tasks are 
+%% represented exactly once
 isSolution(solution(ScheduleList)) :-
 	findall(X, core(X), Cores),
 	findall(Y, task(Y), Tasks),
@@ -13,20 +13,17 @@ isSolution([],[],[]).
 isSolution([schedule(Core, [])|Schedules], Cores,[]) :-	
 	delete_first(Core, Cores, NewCores),
 	isSolution(Schedules, NewCores,[]).
-%isSolution(_, [], Tasks) :- fail.
 isSolution([schedule(Core, Schedule)|Schedules], Cores, Tasks) :-
 	delete_first(Core, Cores, NewCores),
 	set_diff_strict(Tasks, Schedule, NewTasks),
 	isSolution(Schedules, NewCores, NewTasks).
 
-
-
-%delete_first(E,L1,L2): L2 is L1 with the first occurance of E removed, fails if E does not occur in L1.
+% delete_first(E,L1,L2): L2 is L1 with the first occurance of E removed, fails if E does not occur in L1.
 delete_first(E,[E|T],T) :- !.
 delete_first(E,[H|T1],[H|T2]) :- 
 	delete_first(E,T1,T2).
 
-%% set_diff_strict(+Set1, +Set2, -Diff)
+% set_diff_strict(+Set1, +Set2, -Diff)
 %% Takes the difference Set1 minus Set2.
 %% Strict: every element in Set2 must be in Set1 in order to succeed
 set_diff_strict([],[],[]).
@@ -39,19 +36,16 @@ set_diff_strict([X|Y],Set2,Diff):-
 	set_diff_strict(Y,Set2New,Diff).
 
 
-%% Test queries
-% isSolution(solution([schedule(c1,[t1]), schedule(c2,[t2,t7]), schedule(c3, [t3,t6]), schedule(c4, [t4,t5])])).
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % execution_time(+S,-ET)
-% Expects a valid scheduling solution and returns its Execution Time
+%% Expects a valid scheduling solution and returns its Execution Time
 execution_time(solution(ScheduleList), ET) :-
 	execution_time(ScheduleList, 0,0, ET).
-% Schedules: List of schedules in format [schedule(CoreS, [TaskX,...,TaskY]),..., schedule(CoreZ, [TaskZ,...])]
-% TimeSoFar: (Per Core) Time of tasks already computed. Reset to 0 when going to the next core
-% PreviousET: (Accumulator): Maximum ET computed until now. Becomes the final ET when end of schedulelist is reached
-% ET: Final execution time
+%% Schedules: List of schedules in format [schedule(CoreS, [TaskX,...,TaskY]),..., schedule(CoreZ, [TaskZ,...])]
+%% TimeSoFar: (Per Core) Time of tasks already computed. Reset to 0 when going to the next core
+%% PreviousET: (Accumulator): Maximum ET computed until now. Becomes the final ET when end of schedulelist is reached
+%% ET: Final execution time
 execution_time([], 0, ET, ET).
 execution_time([schedule(_, [])|Schedules], TimeSoFar, PreviousET, ET) :-	
 	max(TimeSoFar, PreviousET, CurrentET),
@@ -62,16 +56,16 @@ execution_time([schedule(_, [Htask|Ttasks])|Schedules], TimeSoFar, PreviousET, E
 	execution_time([schedule(_,Ttasks)|Schedules], TimeSoFar2, PreviousET, ET),!.	
 
 % max(?X, ?Y, ?Max)
-% Returns the maximum of X and Y
-% Optimized using a green cut
+%% Returns the maximum of X and Y
+%% Optimized using a green cut
 max(X,Y,Y) :- X =< Y, !.
 max(X,Y,X) :- X > Y. 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % speedup(+S,-Speedup)
-% Computes the Speedup of a given solution S
-% Speedup = optimal sequential execution time / execution time of S
+%% Computes the Speedup of a given solution S
+%% Speedup = optimal sequential execution time / execution time of S
 speedup(S,SpeedUp) :-
 	optimal_sequential(ET1),
 	execution_time(S, ET),
@@ -79,7 +73,7 @@ speedup(S,SpeedUp) :-
 	SpeedUp is round(Div),!.
 
 % optimal_sequential(-ET1)
-% Determines the optimal sequential execution time
+%% Determines the optimal sequential execution time
 optimal_sequential(ET1) :-
 	%% determine fastest core
 	FastestCore = c1,
@@ -91,7 +85,7 @@ optimal_sequential(ET1) :-
 :- dynamic best/2.
 
 % find_optimal(-S)
-% Computes an optimal schedule S
+%% Computes an optimal schedule S
 find_optimal(_) :-
 	optimal_sequential(ET1),
 	ET2 is ET1 + 1,
@@ -112,7 +106,7 @@ update_best(S, TimeS) :-
 	assert(best(S, TimeS)).
 
 % find_solution(-S)
-% Generates any possible scheduling solution 'S'
+%% Generates any possible scheduling solution 'S'
 find_solution(S) :-
 	findall(Core, core(Core), Cores),
 	findall(Task, task(Task), Tasks),
@@ -132,9 +126,9 @@ find_solution([schedule(CurrCore,[])|OtherCores], [CurrCore|Cores], Tasks) :-	% 
 	
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % find_heuristically(-S)
-% Returns a schedule solution by heuristic:
-% Each time a task is considered, it will be added to the
-% (at that moment) core with lowest occupancy (based on execution time)
+%% Returns a schedule solution by heuristic:
+%% Each time a task is considered, it will be added to the
+%% (at that moment) core with lowest occupancy (based on execution time)
 find_heuristically(S) :-
 	findall(Core, core(Core), Cores),
 	findall(Task, task(Task), Tasks),
@@ -154,13 +148,13 @@ create_empty_schedule([HCore|Cores], [schedule(HCore, [])|Schedule]) :-
 	create_empty_schedule(Cores, Schedule).
 
 % add_to_core(+Task, +Core, +ScheduleList, -ResultScheduleList)
-% Append a task to a core in a ScheduleList
+%% Append a task to a core in a ScheduleList
 add_to_core(Task, Core, [schedule(Core, Tasks)|Cores], [schedule(Core, [Task|Tasks])|Cores]) :- !.
 add_to_core(Task, Core, [schedule(CurrCore, Tasks)|Cores], [schedule(CurrCore, Tasks)|RCores]) :-
 	add_to_core(Task, Core, Cores, RCores).
 
 % most_inactive_core(+ScheduleList, -ResultCore)
-% Returns a core 'ResultCore' with lowest time occupancy according to 'ScheduleList'
+%% Returns a core 'ResultCore' with lowest time occupancy according to 'ScheduleList'
 most_inactive_core(ScheduleList, ResultCore) :-
 	most_inactive_core(ScheduleList,1000000,_, ResultCore).
 
@@ -174,21 +168,51 @@ most_inactive_core([schedule(_,_)|Schedules], CurrTime, CurrCore, ResultCore) :-
 
 
 % core_time(+Core, +Tasks, -TotalTime)
-% Returns the occupancy time of a core 'Core' when processing 'Tasks'
+%% Returns the occupancy time of a core 'Core' when processing 'Tasks'
 core_time(_, [], 0).
 core_time(Core, [HTask|Tasks], TotalTime) :-
 	core_time(Core, Tasks, Time), !,
 	process_cost(HTask, Core, TaskTime),
 	TotalTime is Time + TaskTime.
 
-%% DEPRECATED
-%% find_optimal_task(Tasks, ResultTask, ResultCore) :-
-%% 	find_optimal_task(Tasks, 1000000, nil, nil, ResultTask, ResultCore).
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+pretty_print(solution(S)) :-
+	execution_time(solution(S), ET),
+	write('\n'),
+	write('============================='), write('\n'),
+	write('Schedule:'), write('\n'),
+	write('------------------------'), write('\n'),
+	[schedule(Core, _)|_] = S,
+	write('>>> Core: '), write(Core), write('\n'),
+	pretty_print_loop(S), !,
+	write('Execution Time: '), write(ET), write('\n'),
+	write('============================='), write('\n'),
+	speedup(solution(S), SpeedUp),
+	write('SpeedUp: '), write(SpeedUp), write('\n'),
+	write('============================='), write('\n').
 
-%% find_optimal_task([],_, Task, Core, Task, Core).
-%% find_optimal_task([HTask|Tasks], Min,_,_, ResultTask, ResultCore) :-
-%% 	process_cost(HTask, Core, Time),
-%% 	Time =< Min, !,
-%% 	find_optimal_task(Tasks, Time, HTask, Core, ResultTask, ResultCore).
-%% find_optimal_task([_|Tasks], Min, CurTask, CurCore, ResultTask, ResultCore) :-
-%% 	find_optimal_task(Tasks, Min, CurTask, CurCore, ResultTask, ResultCore).
+pretty_print_loop([]) :-
+	write('============================='), write('\n').
+pretty_print_loop([schedule(Core, [HTask|Tasks])|Cores]) :-
+	write('> Task: '), write(HTask), write('\n'),
+	pretty_print_loop([schedule(Core, Tasks)|Cores]).
+pretty_print_loop([schedule(_, []), schedule(Core, Tasks)|Cores]) :-
+	write('>>> Core: '), write(Core), write('\n'),
+	pretty_print_loop([schedule(Core, Tasks)|Cores]).
+pretty_print_loop([schedule(_,[])|Cores]) :-
+	pretty_print_loop(Cores).
+	
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% test_optimal(-S, -ET)
+%% Predicate for testing optimal
+%% Returns the solution 'S' found and its execution_time
+test_optimal(S, ET) :-
+	find_optimal(S),
+	execution_time(S,ET).
+
+% test_heuristically(-S, -ET)
+%% Analog to test-optimal
+test_heuristically(S, ET) :-
+	find_heuristically(S),
+	execution_time(S, ET).
