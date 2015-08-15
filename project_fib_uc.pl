@@ -312,8 +312,6 @@ core_time(Core, [HTask|Tasks], TotalTime) :-
 %% Computes an optimal schedule S
 find_optimal(_) :-
 	optimal_sequential(ET1),
-	%% TWEAK: TO Remove
-	%%ET1 = 1000,
 	ET2 is ET1 + 1,
 	assert(best(nil, ET2)),
 	find_solution(S),
@@ -353,6 +351,7 @@ find_solution([CurrCore|Cores], Tasks, AccSchedule, ScheduleList) :-	% Switch to
 	find_solution(Cores, Tasks, [schedule(CurrCore,[])|AccSchedule], ScheduleList).
 	
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 % find_heuristically(-S)
 %% Returns a schedule solution by heuristic:
 %% Each time a task is considered, it will be added to the
