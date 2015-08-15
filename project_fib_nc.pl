@@ -1,6 +1,6 @@
 % isSolution(+S)
-% Checks if S is a valid solution by checking if all cores and tasks are 
-% represented exactly once
+%% Checks if S is a valid solution by checking if all cores and tasks are 
+%% represented exactly once
 isSolution(solution(ScheduleList)) :-
 	findall(X, core(X), Cores),
 	findall(Y, task(Y), Tasks),
@@ -12,8 +12,7 @@ isSolution([],[],[]).
 %% No more tasks remaining, only cores. Checking if each core is represented in list of schedules
 isSolution([schedule(Core, [])|Schedules], Cores,[]) :-	
 	delete_first(Core, Cores, NewCores),
-	isSolution(Schedules, NewCores,[]).
-%isSolution(_, [], Tasks) :- fail.
+	isSolution(Schedules, NewCores,[]).	
 isSolution([schedule(Core, Schedule)|Schedules], Cores, Tasks) :-
 	delete_first(Core, Cores, NewCores),
 	check_dependencies(Schedule),
@@ -43,12 +42,12 @@ check_trans_dependencies([HDep|Deps], TaskList) :-
 	check_trans_dependencies(Deps, TaskList).
 
 
-%delete_first(E,L1,L2): L2 is L1 with the first occurance of E removed, fails if E does not occur in L1.
+% delete_first(E,L1,L2): L2 is L1 with the first occurance of E removed, fails if E does not occur in L1.
 delete_first(E,[E|T],T) :- !.
 delete_first(E,[H|T1],[H|T2]) :- 
 	delete_first(E,T1,T2).
 
-%% set_diff_strict(+Set1, +Set2, -Diff)
+% set_diff_strict(+Set1, +Set2, -Diff)
 %% Takes the difference Set1 minus Set2.
 %% Strict: every element in Set2 must be in Set1 in order to succeed
 set_diff_strict([],[],[]).
@@ -60,7 +59,7 @@ set_diff_strict([X|Y],Set2,Diff):-
 	delete_first(X, Set2, Set2New),
 	set_diff_strict(Y,Set2New,Diff).
 
-%% set_diff(+Set1, +Set2, -Diff)
+% set_diff(+Set1, +Set2, -Diff)
 %% Non-strict version of set_diff
 set_diff([],_,[]).
 set_diff([X|Y],Set2,Res):-
@@ -70,20 +69,18 @@ set_diff([X|Y],Set2,Res):-
 set_diff([_|Y],Set2,Diff):-
 	set_diff(Y,Set2,Diff).
 
-%% Test queries
-% isSolution(solution([schedule(c1,[t1]), schedule(c2,[t2,t7]), schedule(c3, [t3,t6]), schedule(c4, [t4,t5])])).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % execution_time(+S,-ET)
-% Expects a valid scheduling solution and returns its Execution Time
+%% Expects a valid scheduling solution and returns its Execution Time
 execution_time(solution(ScheduleList), ET) :-
 	get_schedule_tasks(ScheduleList, Tasks),
 	execution_time(ScheduleList, Tasks, [], 0, ET). % ScheduleList, DepSortTasks, Processed, PreviousET, ET
-% ScheduleList: List of schedules in format [schedule(CoreS, [TaskX,...,TaskY]),..., schedule(CoreZ, [TaskZ,...])]
-% Tasks: All tasks in the schedule to be considered on order to compute ET
-% PreviousET: (Accumulator): Maximum ET computed until now. Becomes the final ET when end of 'Tasks' is reached
-% ET: Final execution time
+%% ScheduleList: List of schedules in format [schedule(CoreS, [TaskX,...,TaskY]),..., schedule(CoreZ, [TaskZ,...])]
+%% Tasks: All tasks in the schedule to be considered on order to compute ET
+%% PreviousET: (Accumulator): Maximum ET computed until now. Becomes the final ET when end of 'Tasks' is reached
+%% ET: Final execution time
 execution_time(_, [],_, ET, ET) :- !.
 execution_time(ScheduleList, Tasks, ProcessedTasks, PreviousET, ET) :-
 	get_no_dep_tasks(Tasks, NoDepTasks),
@@ -94,7 +91,7 @@ execution_time(ScheduleList, Tasks, ProcessedTasks, PreviousET, ET) :-
 	append(OPTBeforeTasks, ProcessedTasks, NewProcessedTasks),
 	execution_time(ScheduleList, NextTasks, NewProcessedTasks, NextET, ET).
 
-%% have_only_processed_tasks_before(+Tasks, +ScheduleList, +ProcessedTasks, -OPTBeforeTasks)
+% have_only_processed_tasks_before(+Tasks, +ScheduleList, +ProcessedTasks, -OPTBeforeTasks)
 %% Returns 'OPTBeforeTasks' containing only those tasks in 'Tasks' having only processed tasks
 %% 'ProcessedTasks' scheduled before them (based on 'ScheduleList')
 have_only_processed_tasks_before([],_,_,[]).
@@ -109,7 +106,7 @@ have_only_processed_tasks_before([_|TTasks], ScheduleList, ProcessedTasks, OPTBe
 	have_only_processed_tasks_before(TTasks, ScheduleList, ProcessedTasks, OPTBeforeTasks).
 
 
-%% has_only_processed_tasks_before(+Task, +Tasks, +ProcessedTasks)
+% has_only_processed_tasks_before(+Task, +Tasks, +ProcessedTasks)
 %% Checks if any task in 'Tasks' before 'Task' is already processed
 %% e.g. member of 'ProcessedTasks'
 %% 'Task' must be member of 'Tasks' !!
@@ -119,7 +116,7 @@ has_only_processed_tasks_before(Task, [HTask|TTasks], ProcessedTasks) :-
 	has_only_processed_tasks_before(Task, TTasks, ProcessedTasks).
 
 
-%% etime_nondeps(+NonDeps, +ScheduleList, -ET)
+% etime_nondeps(+NonDeps, +ScheduleList, -ET)
 %% Computes the execution time of tasks 'NonDeps' according
 %% to the schedule given by 'ScheduleList'
 %% Only the tasks in 'NonDeps' are considered
@@ -149,12 +146,12 @@ etime_nondeps([HNonDeps|TNonDeps], ScheduleList, ProcessedNonDeps, CoresSchedule
 
 
 % max(?X, ?Y, ?Max)
-% Returns the maximum of X and Y
-% Optimized using a green cut
+%% Returns the maximum of X and Y
+%% Optimized using a green cut
 max(X,Y,Y) :- X =< Y, !.
 max(X,Y,X) :- X > Y. 
 
-%% get_schedule_tasks(+ScheduleList, -Tasks)
+% get_schedule_tasks(+ScheduleList, -Tasks)
 %% Expects a list of schedules 'ScheduleList' and extracts its tasks.
 get_schedule_tasks([], []).
 get_schedule_tasks([schedule(Core, [HTask|TTask])|Schedules], [HTask|ResTasks]) :-
@@ -162,7 +159,7 @@ get_schedule_tasks([schedule(Core, [HTask|TTask])|Schedules], [HTask|ResTasks]) 
 get_schedule_tasks([schedule(_,[])|Schedules], ResTasks) :-
 	get_schedule_tasks(Schedules, ResTasks), !.
 
-%% scheduled_on_core(+Task, +ScheduleList, -Core)
+% scheduled_on_core(+Task, +ScheduleList, -Core)
 %% Returns core 'Core' on which 'Task' is scheduled in 'ScheduleList'
 %% 'ScheduleList' must be a valid schedule
 scheduled_on_core(Task, [schedule(Core, Tasks)|_], Core) :-
@@ -171,7 +168,7 @@ scheduled_on_core(Task, [_|Schedules], Core) :-
 	scheduled_on_core(Task, Schedules, Core).	
 
 
-%% core_scheduled_tasks(+Core, +ScheduleList, -Tasks)
+% core_scheduled_tasks(+Core, +ScheduleList, -Tasks)
 %% Returns 'Tasks' scheduled on 'Core' in 'ScheduleList'
 core_scheduled_tasks(Core, [schedule(Core, Tasks)|_], Tasks) :- !.
 core_scheduled_tasks(Core, [_|OtherCores], Tasks) :-
@@ -181,15 +178,15 @@ core_scheduled_tasks(Core, [_|OtherCores], Tasks) :-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % speedup(+S,-Speedup)
-% Computes the Speedup of a given solution S
-% Speedup = optimal sequential execution time / execution time of S
+%% Computes the Speedup of a given solution S
+%% Speedup = optimal sequential execution time / execution time of S
 speedup(S,SpeedUp) :-
 	optimal_sequential(ET1),
 	execution_time(S, ET),
 	SpeedUp is ET1 / ET,!.
 
 % optimal_sequential(-ET1)
-% Determines the optimal sequential execution time
+%% Determines the optimal sequential execution time
 optimal_sequential(ET1) :-
 	findall(Core, core(Core), Cores),
 	findall(Task, task(Task), Tasks),
@@ -198,9 +195,9 @@ optimal_sequential(ET1) :-
 	core_time(FastestCore, SortedTasks, ET1),!.
 
 % fastest_core(+Cores, +Tasks, -Core)
-% Given a list of cores 'Cores', returns the fastest 'Core'
-% by summing the cost of computing all tasks 'Tasks' per core
-% and then taking the core with the lowest cost
+%% Given a list of cores 'Cores', returns the fastest 'Core'
+%% by summing the cost of computing all tasks 'Tasks' per core
+%% and then taking the core with the lowest cost
 fastest_core(Cores, Tasks, Core) :-
 	fastest_core(Cores, Tasks, 1000000, nil, Core).
 fastest_core([],_,_, Core, Core).
@@ -212,7 +209,7 @@ fastest_core([_|Cores], Tasks, CurrTime, CurrCore, Core) :-
 	fastest_core(Cores, Tasks, CurrTime, CurrCore, Core).
 
 % core_time(+Core, +Tasks, -TotalTime)
-% Returns the occupancy time of a core 'Core' when processing 'Tasks'
+%% Returns the occupancy time of a core 'Core' when processing 'Tasks'
 core_time(_, [], 0).
 core_time(Core, [HTask|Tasks], TotalTime) :-
 	core_time(Core, Tasks, Time), !,
@@ -225,7 +222,7 @@ core_time(Core, [HTask|Tasks], TotalTime) :-
 :- dynamic best/2.
 
 % find_optimal(-S)
-% Computes an optimal schedule S
+%% Computes an optimal schedule S
 find_optimal(_) :-
 	optimal_sequential(ET1),
 	ET2 is ET1 + 1,
@@ -246,7 +243,7 @@ update_best(S, TimeS) :-
 	assert(best(S, TimeS)).
 
 % find_solution(-S)
-% Generates any possible scheduling solution 'S'
+%% Generates any possible scheduling solution 'S'
 find_solution(S) :-
 	findall(Core, core(Core), Cores),
 	reverse(Cores, RCores),	% Cosmetics: reverse 'Cores' to get S in normal order: c1,c2,... instead of ...,c2,c1
@@ -268,9 +265,9 @@ find_solution([CurrCore|Cores], Tasks, AccSchedule, ScheduleList) :-	% Switch to
 	
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % find_heuristically(-S)
-% Returns a schedule solution by heuristic:
-% Each time a task is considered, it will be added to the
-% (at that moment) core with lowest occupancy (based on execution time)
+%% Returns a schedule solution by heuristic:
+%% Each time a task is considered, it will be added to the
+%% (at that moment) core with lowest occupancy (based on execution time)
 find_heuristically(S) :-
 	findall(Core, core(Core), Cores),
 	findall(Task, task(Task), Tasks),
@@ -291,14 +288,14 @@ create_empty_schedule([HCore|Cores], [schedule(HCore, [])|Schedule]) :-
 	create_empty_schedule(Cores, Schedule).
 
 % add_to_core(+Task, +Core, +ScheduleList, -ResultScheduleList)
-% Append a task to a core in a ScheduleList
+%% Append a task to a core in a ScheduleList
 add_to_core(Task, Core, [schedule(Core, Tasks)|Cores], [schedule(Core, NewCoreSchedule)|Cores]) :-
 	add2end(Task, Tasks, NewCoreSchedule).
 add_to_core(Task, Core, [schedule(CurrCore, Tasks)|Cores], [schedule(CurrCore, Tasks)|RCores]) :-
 	add_to_core(Task, Core, Cores, RCores).
 
 % most_inactive_core(+ScheduleList, -ResultCore)
-% Returns a core 'ResultCore' with lowest time occupancy according to 'ScheduleList'
+%% Returns a core 'ResultCore' with lowest time occupancy according to 'ScheduleList'
 most_inactive_core(ScheduleList, ResultCore) :-
 	most_inactive_core(ScheduleList,1000000,_, ResultCore).
 
@@ -311,7 +308,7 @@ most_inactive_core([schedule(_,_)|Schedules], CurrTime, CurrCore, ResultCore) :-
 	most_inactive_core(Schedules, CurrTime, CurrCore, ResultCore).
 
 
-%% sort_by_dependencies(+Tasks, -Sorted)
+% sort_by_dependencies(+Tasks, -Sorted)
 %% Sorts 'Tasks' in such way that (from left to right)
 %% no dependencies are violated
 sort_by_dependencies(Tasks, Sorted) :-
@@ -324,14 +321,14 @@ sort_by_dependencies_do(Tasks, [NonDeps|Sorted]) :-
 	set_diff(Tasks, NonDeps, DepTasks),			% Remove dependencies from tasklist
 	sort_by_dependencies_do(DepTasks, Sorted).
 
-%% get_no_dep_tasks(+Tasks, -NonDeps)
+% get_no_dep_tasks(+Tasks, -NonDeps)
 %% Expects a list of tasks 'Tasks'
 %% Returns tasks 'NonDeps' not depending on any
 %% other task in 'Tasks'
 get_no_dep_tasks(Tasks, NonDeps) :-
 	findall(Task, (member(Task, Tasks), not((depends_on(Task, Dependency,_), member(Dependency, Tasks)))), NonDeps).
 
-%% add2end(+E, +List, -NewList)
+% add2end(+E, +List, -NewList)
 %% adds an element to the end of a list
 %% != append (if List is empty, append only returns E, not [E])
 add2end(E,[H|T],[H|NewT]) :- add2end(E,T,NewT).
