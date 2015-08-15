@@ -335,6 +335,33 @@ add2end(E,[H|T],[H|NewT]) :- add2end(E,T,NewT).
 add2end(E,[],[E]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+pretty_print(solution(S)) :-
+	execution_time(solution(S), ET),
+	write('\n'),
+	write('============================='), write('\n'),
+	write('Schedule:'), write('\n'),
+	write('------------------------'), write('\n'),
+	[schedule(Core, _)|_] = S,
+	write('>>> Core: '), write(Core), write('\n'),
+	pretty_print_loop(S), !,
+	write('Execution Time: '), write(ET), write('\n'),
+	write('============================='), write('\n'),
+	speedup(solution(S), SpeedUp),
+	write('SpeedUp: '), write(SpeedUp), write('\n'),
+	write('============================='), write('\n').
+
+pretty_print_loop([]) :-
+	write('============================='), write('\n').
+pretty_print_loop([schedule(Core, [HTask|Tasks])|Cores]) :-
+	write('> Task: '), write(HTask), write('\n'),
+	pretty_print_loop([schedule(Core, Tasks)|Cores]).
+pretty_print_loop([schedule(_, []), schedule(Core, Tasks)|Cores]) :-
+	write('>>> Core: '), write(Core), write('\n'),
+	pretty_print_loop([schedule(Core, Tasks)|Cores]).
+pretty_print_loop([schedule(_,[])|Cores]) :-
+	pretty_print_loop(Cores).
+	
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % test_optimal(-S, -ET)
 %% Predicate for testing optimal
