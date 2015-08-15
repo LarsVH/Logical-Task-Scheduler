@@ -274,9 +274,9 @@ find_solution([CurrCore|Cores], Tasks, AccSchedule, ScheduleList) :-	% Switch to
 find_heuristically(S) :-
 	findall(Core, core(Core), Cores),
 	findall(Task, task(Task), Tasks),
-	%sort_by_dependencies(Tasks, SortedTasks),
+	sort_by_dependencies(Tasks, SortedTasks),
 	create_empty_schedule(Cores, InitScheduleList),
-	find_heuristically(Tasks, Cores, InitScheduleList, ScheduleList), !,
+	find_heuristically(SortedTasks, Cores, InitScheduleList, ScheduleList), !,
 	S = solution(ScheduleList).
 
 find_heuristically([],_, ScheduleList, ScheduleList).
@@ -337,18 +337,18 @@ get_no_dep_tasks(Tasks, NonDeps) :-
 add2end(E,[H|T],[H|NewT]) :- add2end(E,T,NewT).
 add2end(E,[],[E]).
 
-%% DEPRECATED
-%% find_optimal_task(Tasks, ResultTask, ResultCore) :-
-%% 	find_optimal_task(Tasks, 1000000, nil, nil, ResultTask, ResultCore).
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% find_optimal_task([],_, Task, Core, Task, Core).
-%% find_optimal_task([HTask|Tasks], Min,_,_, ResultTask, ResultCore) :-
-%% 	process_cost(HTask, Core, Time),
-%% 	Time =< Min, !,
-%% 	find_optimal_task(Tasks, Time, HTask, Core, ResultTask, ResultCore).
-%% find_optimal_task([_|Tasks], Min, CurTask, CurCore, ResultTask, ResultCore) :-
-%% 	find_optimal_task(Tasks, Min, CurTask, CurCore, ResultTask, ResultCore).
-
-test_large(ET) :-
-	find_heuristically(S),
+% test_optimal(-S, -ET)
+%% Predicate for testing optimal
+%% Returns the solution 'S' found and its execution_time
+test_optimal(S, ET) :-
+	find_optimal(S),
 	execution_time(S,ET).
+
+% test_heuristically(-S, -ET)
+%% Analog to test-optimal
+test_heuristically(S, ET) :-
+	find_heuristically(S),
+	execution_time(S, ET).
+
