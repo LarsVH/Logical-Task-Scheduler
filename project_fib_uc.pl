@@ -360,40 +360,50 @@ find_solution([CurrCore|Cores], Tasks, AccSchedule, ScheduleList) :-	% Switch to
 find_heuristically(S) :-
 	findall(Core, core(Core), Cores),
 	findall(Task, task(Task), Tasks),
+	sort_by_dependencies(Tasks, [HDepTask|DepTasks]),
 	create_empty_schedule(Cores, InitScheduleList),
-	find_heuristically(Tasks, Cores, InitScheduleList, ScheduleList), !,
-	S = solution(ScheduleList).
+	find_heuristically([HDepTask|DepTasks], Cores, InitScheduleList, FinalScheduleList), !,
+	S = solution(FinalScheduleList).
 
-find_heuristically([],_, ScheduleList, ScheduleList).
-find_heuristically([HTask|Tasks], Cores, CurrSchedule, ScheduleList) :-
-	most_inactive_core(CurrSchedule, Core),
-	add_to_core(HTask, Core, CurrSchedule, ResultSchedule),
-	find_heuristically(Tasks, Cores, ResultSchedule, ScheduleList).
+% find_heuristically(+Tasks, +Cores, +PrevScheduleList, -FinalScheduleList)
+%% Helper for find_heuristically, iterating over tasks
+find_heuristically([],_,FinalScheduleList,FinalScheduleList) :- !.
+find_heuristically([HTask|Tasks], Cores, PrevScheduleList, FinalScheduleList) :-	
+	find_heuristically_core(HTask, Cores, PrevScheduleList, BestCore),
+	add_to_core(HTask, BestCore, PrevScheduleList, NextScheduleList),
+	find_heuristically(Tasks, Cores, NextScheduleList, FinalScheduleList).
+
+
+% find_heuristically_core(+Task, +Cores, +ScheduleList, -FinalBestCore)
+%% Helper for find_heuristically, iterating over cores (per task)
+find_heuristically_core(Task, [HCore|Cores], ScheduleList, FinalBestCore) :-
+	add_to_core(Task, HCore, ScheduleList, SimulatedScheduleList),
+	execution_time(solution(SimulatedScheduleList), SimulatedET),
+	find_heuristically_core(Task, Cores, ScheduleList, HCore, SimulatedET, FinalBestCore).
+
+find_heuristically_core(_, [],_, FinalBestCore,_, FinalBestCore) :- !.
+find_heuristically_core(Task, [HCore|Cores], ScheduleList,_, PrevBestET, FinalBestCore) :-
+	add_to_core(Task, HCore, ScheduleList, SimulatedScheduleList),
+	execution_time(solution(SimulatedScheduleList), CurrET),
+	CurrET =< PrevBestET, !,
+	find_heuristically_core(Task, Cores, ScheduleList, HCore, CurrET, FinalBestCore).
+find_heuristically_core(Task, [_|Cores], ScheduleList, PrevBestCore, PrevBestET, FinalBestCore) :-
+	find_heuristically_core(Task, Cores, ScheduleList, PrevBestCore, PrevBestET, FinalBestCore).
 
 % create_empty_schedule(+Cores, -Schedule)
+%% Creates a blank schedulelist 'Schedule' 
+%% (schedule(c1,[t1,t2,...]), schedule(c2,...),...)
+%% from the given list of cores 'Cores'
 create_empty_schedule([], []).
 create_empty_schedule([HCore|Cores], [schedule(HCore, [])|Schedule]) :-
 	create_empty_schedule(Cores, Schedule).
 
 % add_to_core(+Task, +Core, +ScheduleList, -ResultScheduleList)
-%% Append a task to a core in a ScheduleList
+%% Add a task 'Task' as last task to a core 'Core' in 'ScheduleList'
 add_to_core(Task, Core, [schedule(Core, Tasks)|Cores], [schedule(Core, NewCoreSchedule)|Cores]) :-
-	add2end(Task, Tasks, NewCoreSchedule).
+	add2end(Task, Tasks, NewCoreSchedule), !.
 add_to_core(Task, Core, [schedule(CurrCore, Tasks)|Cores], [schedule(CurrCore, Tasks)|RCores]) :-
 	add_to_core(Task, Core, Cores, RCores).
-
-% most_inactive_core(+ScheduleList, -ResultCore)
-%% Returns a core 'ResultCore' with lowest time occupancy according to 'ScheduleList'
-most_inactive_core(ScheduleList, ResultCore) :-
-	most_inactive_core(ScheduleList,1000000,_, ResultCore).
-
-most_inactive_core([],_, ResultCore, ResultCore).
-most_inactive_core([schedule(Core, Tasks)|Schedules], CurrTime,_, ResultCore) :-
-	core_time(Core, Tasks, Time),
-	Time =< CurrTime, !,
-	most_inactive_core(Schedules, Time, Core, ResultCore).
-most_inactive_core([schedule(_,_)|Schedules], CurrTime, CurrCore, ResultCore) :-
-	most_inactive_core(Schedules, CurrTime, CurrCore, ResultCore).
 
 
 % sort_by_dependencies(+Tasks, -Sorted)
@@ -424,44 +434,88 @@ add2end(E,[],[E]).
 
 
 
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % pretty_print(+S)
+%% Prints a solution 'S' in a human readable format
 pretty_print(solution(S)) :-
 	execution_time(solution(S), TmstpSchedule, ET),
 	write('\n'),
-	write('========================'), write('\n'),
+	write('============================='), write('\n'),
 	write('Schedule:'), write('\n'),
 	write('------------------------'), write('\n'),
 	[schedule(Core, _)|_] = S,
 	write('>>> Core: '), write(Core), write('\n'),
 	pretty_print_loop(S), !,
 	write('Execution Time: '), write(ET), write('\n'),
-	write('========================'), write('\n'),
+	write('============================='), write('\n'),
 	speedup(solution(S), SpeedUp),
 	write('SpeedUp: '), write(SpeedUp), write('\n'),
-	write('========================'), write('\n'),
-	write('Timestamped per task: '), write('\n'),
+	write('============================='), write('\n'),
+	write('Timestamped per task (endtimes): '), write('\n'),
 	write(TmstpSchedule), write('\n'),
-	write('========================'), write('\n').
+	write('============================='), write('\n'),
+	write('Timeline View (starttimes)'), write('\n'),
+	write('-----------------------------'), write('\n'),
+	print_timeline(TmstpSchedule),
+	write('============================='), write('\n').
+
 
 pretty_print_loop([]) :-
-	write('========================'), write('\n').
+	write('============================='), write('\n').
 pretty_print_loop([schedule(Core, [HTask|Tasks])|Cores]) :-
 	write('> Task: '), write(HTask), write('\n'),
 	pretty_print_loop([schedule(Core, Tasks)|Cores]).
 pretty_print_loop([schedule(_, []), schedule(Core, Tasks)|Cores]) :-
 	write('>>> Core: '), write(Core), write('\n'),
 	pretty_print_loop([schedule(Core, Tasks)|Cores]).
-pretty_print_loop([schedule(_,[])| Cores]) :-
+pretty_print_loop([schedule(_,[])|Cores]) :-
 	pretty_print_loop(Cores).
+
+% print_timeline(+TmstpSchedule)
+%% Extention to 'pretty_print'
+%% Prints a timeline on which the user can see
+%% which tasks are executed after another, parallell, etc.
+%% in a more visual way
+print_timeline(TmstpSchedule) :-
+	[sch(Core,_)|_] = TmstpSchedule,
+	write(Core),
+	print_timeline_loop(TmstpSchedule, 0).
+
+print_timeline_loop([],_) :-
+	write('\n'), !.
+print_timeline_loop([sch(CurrCore, [[CurrTask,Tmstp]|Tasks])|Cores], PrevTmstp) :-
+	RelTmstp is Tmstp / 10,
+	Spaces is RelTmstp - PrevTmstp,
+	write_spaces(Spaces),
+	write(CurrTask), !,
+	print_timeline_loop([sch(CurrCore, Tasks)|Cores], RelTmstp).
+print_timeline_loop([sch(_,[]), sch(Core, Tasks)|Cores],_) :-
+	write('\n'),
+	write(Core), !,
+	print_timeline_loop([sch(Core, Tasks)|Cores], 0).
+print_timeline_loop([sch(_,[])|Cores],_) :-
+	print_timeline_loop(Cores, 0).
+
+write_spaces(Spaces) :- 
+	Spaces =< 0, !.
+write_spaces(Spaces) :-
+	write(' '),
+	NewSpaces is Spaces - 1,
+	write_spaces(NewSpaces).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-test_large(ET) :-
-	find_heuristically(S),
-	execution_time(S,ET).
-
+% test_optimal(-S, -ET)
+%% Predicate for testing optimal
+%% Returns the solution 'S' found and its execution_time
 test_optimal(S, ET) :-
 	find_optimal(S),
 	execution_time(S,ET).
+
+% test_heuristically(-S, -ET)
+%% Analog to test-optimal
+test_heuristically(S, ET) :-
+	find_heuristically(S),
+	execution_time(S, ET).
