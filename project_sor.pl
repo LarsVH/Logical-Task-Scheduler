@@ -427,6 +427,7 @@ add2end(E,[],[E]).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 % pretty_print(+S)
 pretty_print(solution(S)) :-
 	execution_time(solution(S), TmstpSchedule, ET),
